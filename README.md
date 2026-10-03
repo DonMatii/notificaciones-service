@@ -150,3 +150,9 @@ Kafka topic `pedidos`
    ├──▶ notificaciones-service (8083)  → persiste la notificación (estado PENDIENTE)
    └──▶ estadisticas-service  (8081)   → actualiza pedidosTotales / montoTotalPedidos
 ```
+
+## Seguridad (v2)
+
+- `GET /api/notificaciones` está **protegido con header `X-Api-Key`**: el listado contiene nombres y emails de clientes (datos personales), por lo que no puede ser público.
+- La clave vive en la variable de entorno `APP_ADMIN_API_KEY` (propiedad `app.admin-api-key`). Sin configurar, el endpoint responde `503` (fail-closed).
+- El consumidor de Kafka no expone endpoints: solo persiste las notificaciones con estado `PENDIENTE`.
