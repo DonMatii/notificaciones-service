@@ -79,7 +79,12 @@ public class NotificacionListener {
         }
         boolean ok = emailSenderService.enviar(notificacion);
         notificacion.setEstado(ok ? "ENVIADO" : "ERROR");
-        notificacionRepository.save(notificacion);
+        try {
+            notificacionRepository.save(notificacion);
+        } catch (Exception e) {
+            log.error("Could not persist final state {} for order {}: {}",
+                    notificacion.getEstado(), notificacion.getPedidoId(), e.getMessage());
+        }
     }
 
     // Builds the notification row from the event data
