@@ -87,6 +87,11 @@ pero se activa **solo con variables de entorno**. Si `MAIL_HOST` no está defini
 servicio se comporta **exactamente igual que antes**: las notificaciones se persisten con
 estado **`PENDIENTE`** y quedan ahí. Esto es esperado, no es un bug.
 
+> **Desplegado y verificado en vivo (08-10-2026):** la EC2 corre este servicio con las
+> cinco `MAIL_*` apuntando a un servidor SMTP real, y un pedido E2E terminó en estado
+> **`ENVIADO`** (verificado contra `GET /api/notificaciones`). Las credenciales viven
+> solo en las variables de entorno del unit de systemd, jamás en el repositorio.
+
 | Variable | Ejemplo (placeholder) | Default |
 | :--- | :--- | :--- |
 | `MAIL_HOST` | `smtp.example.com` | *(vacío: sin envío)* |
