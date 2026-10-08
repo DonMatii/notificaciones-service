@@ -42,6 +42,12 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Mail starter: SMTP transport for the RF-09 confirmation email -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Lombok to avoid repetitive getter/setter code -->
         <dependency>
             <groupId>org.projectlombok</groupId>

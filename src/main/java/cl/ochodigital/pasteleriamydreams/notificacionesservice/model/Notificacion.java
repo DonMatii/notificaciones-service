@@ -26,11 +26,11 @@ public class Notificacion {
 
     private String asunto;
 
-    // Email body text (email sending is NOT implemented yet: SMTP infra pending)
+    // Email body text sent over SMTP when MAIL_HOST is configured (RF-09)
     @Column(length = 2000)
     private String cuerpo;
 
-    // PENDIENTE until the email step exists (RF-09 is pending SMTP)
+    // PENDIENTE until the email step runs; ENVIADO / ERROR once SMTP is attempted
     private String estado = "PENDIENTE";
 
     // When this notification row was created

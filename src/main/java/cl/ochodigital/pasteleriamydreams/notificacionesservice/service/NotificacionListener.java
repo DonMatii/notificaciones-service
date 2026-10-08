@@ -10,9 +10,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
-// Consumes PedidoCreado events from topic `pedidos` and persists a PENDIENTE
-// notification per order (RF-09). The email itself is NOT sent yet: there is no
-// SMTP infrastructure, so notifications stay in PENDIENTE state by design.
+// Consumes PedidoCreado events from topic `pedidos` and persists a notification
+// per order (RF-09). When SMTP is configured (MAIL_HOST set) the confirmation
+// email is sent right after the save and the row moves to ENVIADO / ERROR;
+// without SMTP the row stays PENDIENTE, exactly as before.
 @Service
 public class NotificacionListener {
 
@@ -23,11 +24,14 @@ public class NotificacionListener {
 
     private final NotificacionRepository notificacionRepository;
     private final ObjectMapper objectMapper;
+    private final EmailSenderService emailSenderService;
 
     public NotificacionListener(NotificacionRepository notificacionRepository,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                EmailSenderService emailSenderService) {
         this.notificacionRepository = notificacionRepository;
         this.objectMapper = objectMapper;
+        this.emailSenderService = emailSenderService;
     }
 
     // Entry point for every message on the topic. Contract:
@@ -48,8 +52,10 @@ public class NotificacionListener {
                 return;
             }
 
-            notificacionRepository.save(construirNotificacion(evento));
+            Notificacion notificacion = construirNotificacion(evento);
+            notificacionRepository.save(notificacion);
             log.info("Notification persisted for order {} with state PENDIENTE", evento.id());
+            aplicarEnvioCorreo(notificacion);
         } catch (DataIntegrityViolationException e) {
             // Lost a race against a concurrent save of the same pedidoId
             log.debug("Duplicate event for order detected on save, skipped: {}", e.getMessage());
@@ -59,6 +65,21 @@ public class NotificacionListener {
             log.error("Could not process event, skipping. Payload: {} - Reason: {}",
                     payload, e.getMessage());
         }
+    }
+
+    // RF-09: hand the freshly saved row to the SMTP sender when one is configured.
+    // Runs after the idempotency guard and the save. EmailSenderService swallows
+    // its own errors and never throws, so the "listener never throws" contract
+    // and the poison-pill handling above stay untouched.
+    private void aplicarEnvioCorreo(Notificacion notificacion) {
+        if (!emailSenderService.habilitado()) {
+            log.info("SMTP not configured, notification stays PENDIENTE (order {})",
+                    notificacion.getPedidoId());
+            return;
+        }
+        boolean ok = emailSenderService.enviar(notificacion);
+        notificacion.setEstado(ok ? "ENVIADO" : "ERROR");
+        notificacionRepository.save(notificacion);
     }
 
     // Builds the notification row from the event data

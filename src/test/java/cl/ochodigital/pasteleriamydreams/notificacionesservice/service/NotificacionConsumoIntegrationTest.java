@@ -57,7 +57,8 @@ class NotificacionConsumoIntegrationTest {
                 "The notification for order 101 must be persisted");
         assertEquals(baseline + 1, notificacionRepository.count());
 
-        // The row carries the expected content and PENDIENTE state (RF-09 pending)
+        // The row carries the expected content and the initial PENDIENTE state
+        // (these tests run without SMTP configured, so no email is attempted)
         Notificacion guardada = notificacionRepository.findByPedidoId(101L).orElseThrow();
         assertEquals("Pedido recibido - 101", guardada.getAsunto());
         assertEquals("Daniela Soto", guardada.getCliente());

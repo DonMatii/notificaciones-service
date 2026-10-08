@@ -1,6 +1,6 @@
 # 🔔 Notificaciones Service - Pastelería My Dreams
 
-Microservicio de notificaciones del sistema **Pastelería My Dreams**: consume los eventos `PedidoCreado` del topic `pedidos` de Kafka y persiste una notificación por cada pedido recibido (RF-09, parcial).
+Microservicio de notificaciones del sistema **Pastelería My Dreams**: consume los eventos `PedidoCreado` del topic `pedidos` de Kafka, persiste una notificación por cada pedido recibido y la envía por correo SMTP cuando el servidor está configurado (RF-09).
 
 ## 📌 Versiones del proyecto
 
@@ -19,6 +19,7 @@ Diseñado y construido por **8 Digital**.
 * **Lenguaje:** Java 21
 * **Framework:** Spring Boot 3.2.5 + Spring Web + Spring Data JPA (Hibernate)
 * **Mensajería:** Apache Kafka (consumidor, topic `pedidos`)
+* **Correo:** Spring Mail (SMTP, configurado por variables de entorno `MAIL_*`)
 * **Base de Datos:** MySQL local / Amazon AWS RDS
 * **Gestor de dependencias:** Maven
 * **Estructura de datos:** JSON
@@ -54,11 +55,14 @@ Respuesta (entidad `Notificacion`):
 2. Parsea el JSON publicado por `pedidos-service`
    (`evento`, `id`, `cliente`, `email`, `producto`, `cantidad`, `total`, `fecha`).
 3. Persiste una fila `Notificacion`: `pedidoId`, `cliente`, `email`,
-   `asunto` (`Pedido recibido - {pedidoId}`), `cuerpo`, `estado = PENDIENTE`, `fecha`.
+   `asunto` (`Pedido recibido - {pedidoId}`), `cuerpo`, estado inicial `PENDIENTE`, `fecha`.
 4. **Idempotente:** `pedidoId` tiene restricción `UNIQUE`, así que una reentrega
    at-least-once del mismo pedido produce una sola fila (los duplicados se saltan con un log de debug).
 5. **Tolerante a mensajes basura (poison pill):** un mensaje ilegible o inválido se
    registra en el log y se salta; el listener nunca lanza excepción hacia afuera y no bloquea al consumidor.
+6. **Envío de correo (RF-09):** si `MAIL_HOST` está configurado, intenta enviar el correo
+   por SMTP justo después de guardar y actualiza el estado a `ENVIADO` o `ERROR`; si no
+   está configurado, la fila queda `PENDIENTE` exactamente como hasta ahora.
 
 ### Cuerpo de la notificación (ejemplo real del E2E)
 
@@ -76,13 +80,31 @@ Total: $30000
 Estado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.
 ```
 
-## 📧 Estado honesto de RF-09: el correo AÚN NO se envía
+## 📧 Estado honesto de RF-09: el correo se envía por SMTP si está configurado
 
-**El servicio de correo no está implementado.** No existe infraestructura SMTP, así que
-las notificaciones se persisten con estado **`PENDIENTE`** y quedan ahí. El envío del correo
-es el paso pendiente de RF-09: requiere un servidor SMTP (previsto para cuando haya mail
-server en EC2) y solo entonces el estado pasará a un estado de envío (por ejemplo, `ENVIADA`).
-Esto es esperado, no es un bug.
+**La capacidad de envío existe** (`spring-boot-starter-mail` + `EmailSenderService`),
+pero se activa **solo con variables de entorno**. Si `MAIL_HOST` no está definida, el
+servicio se comporta **exactamente igual que antes**: las notificaciones se persisten con
+estado **`PENDIENTE`** y quedan ahí. Esto es esperado, no es un bug.
+
+| Variable | Ejemplo (placeholder) | Default |
+| :--- | :--- | :--- |
+| `MAIL_HOST` | `smtp.example.com` | *(vacío: sin envío)* |
+| `MAIL_PORT` | `587` | `587` |
+| `MAIL_USER` | `usuario@example.com` | *(vacío)* |
+| `MAIL_PASS` | `********` | *(vacío)* |
+| `MAIL_FROM` | `no-reply@example.com` | *(vacío; si falta, se usa `MAIL_USER`)* |
+
+Con `MAIL_HOST` configurado, después de persistir la fila el listener intenta enviar el
+correo con el asunto y el cuerpo ya construidos y guarda el resultado:
+
+* envío correcto → estado **`ENVIADO`**;
+* fallo de envío (SMTP caído, timeout, etc.) → estado **`ERROR`**, y el listener
+  **nunca lanza excepción** (el consumidor de Kafka no se bloquea);
+* destinatario vacío o placeholder `sin email` → se omite el intento (log a nivel info).
+
+Ningún credencial vive en el repositorio: todo llega por variables de entorno, igual que
+`DB_PASS` y `APP_ADMIN_API_KEY`.
 
 ## 🐳 Kafka local (broker)
 
@@ -135,7 +157,11 @@ contenedores de Docker en marcha. Cobertura:
 * carga de contexto,
 * un payload real de productor persiste exactamente una notificación,
 * el mismo evento publicado dos veces sigue produciendo una sola fila (idempotencia),
-* payloads rotos se saltan sin matar al consumidor (tolerancia a poison pill).
+* payloads rotos se saltan sin matar al consumidor (tolerancia a poison pill),
+* deshabilitado sin `MAIL_HOST` → la fila queda `PENDIENTE` y no hay intento de envío,
+* habilitado → estado `ENVIADO` cuando el envío funciona y `ERROR` cuando falla,
+  sin que el listener lance excepción,
+* destinatarios vacíos o placeholder `sin email` → se omiten, no cuentan como fallo.
 
 ## 🔄 Flujo end-to-end
 
@@ -147,7 +173,7 @@ pedidos-service (8082)
    │  persiste el pedido y publica PedidoCreado
    ▼
 Kafka topic `pedidos`
-   ├──▶ notificaciones-service (8083)  → persiste la notificación (estado PENDIENTE)
+   ├──▶ notificaciones-service (8083)  → persiste la notificación y la envía por SMTP (PENDIENTE → ENVIADO / ERROR; sin MAIL_HOST queda PENDIENTE)
    └──▶ estadisticas-service  (8081)   → actualiza pedidosTotales / montoTotalPedidos
 ```
 
@@ -155,4 +181,4 @@ Kafka topic `pedidos`
 
 - `GET /api/notificaciones` está **protegido con header `X-Api-Key`**: el listado contiene nombres y emails de clientes (datos personales), por lo que no puede ser público.
 - La clave vive en la variable de entorno `APP_ADMIN_API_KEY` (propiedad `app.admin-api-key`). Sin configurar, el endpoint responde `503` (fail-closed).
-- El consumidor de Kafka no expone endpoints: solo persiste las notificaciones con estado `PENDIENTE`.
+- El consumidor de Kafka no expone endpoints: solo persiste las notificaciones y, si SMTP está configurado, les envía el correo y actualiza su estado.
