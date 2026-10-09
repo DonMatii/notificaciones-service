@@ -41,10 +41,11 @@ Respuesta (entidad `Notificacion`):
     "pedidoId": 1,
     "cliente": "E2E Test",
     "email": "e2e@test.cl",
-    "asunto": "Pedido recibido - 1",
+    "asunto": "Pastelería My Dreams — Recibimos tu pedido",
     "cuerpo": "Hola E2E Test,\n\nTu pedido 1 fue recibido correctamente.\n\nProductos: Torta E2E\nCantidad total de articulos: 2\nTotal: $30000\n\nEstado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.",
-    "estado": "PENDIENTE",
-    "fecha": "2026-10-01T21:29:02.500"
+    "codigoSeguimiento": "d7f13d73dc074a808bb9314e06a6a265",
+    "estado": "ENVIADO",
+    "fecha": "2026-10-09T12:58:52.662"
   }
 ]
 ```
@@ -53,9 +54,11 @@ Respuesta (entidad `Notificacion`):
 
 1. Escucha el topic `pedidos` con el consumer group **`notificaciones`** (`@KafkaListener`, `auto-offset-reset: earliest`).
 2. Parsea el JSON publicado por `pedidos-service`
-   (`evento`, `id`, `cliente`, `email`, `producto`, `cantidad`, `total`, `fecha`).
+   (`evento`, `id`, `cliente`, `email`, `producto`, `cantidad`, `total`, `fecha`, `codigoConsulta`).
 3. Persiste una fila `Notificacion`: `pedidoId`, `cliente`, `email`,
-   `asunto` (`Pedido recibido - {pedidoId}`), `cuerpo`, estado inicial `PENDIENTE`, `fecha`.
+   `asunto` (marca, `Pastelería My Dreams — Recibimos tu pedido`), `cuerpo`, `codigoSeguimiento`
+   (espejo del `codigoConsulta` del evento, leído defensivamente desde el JSON crudo),
+   estado inicial `PENDIENTE`, `fecha`.
 4. **Idempotente:** `pedidoId` tiene restricción `UNIQUE`, así que una reentrega
    at-least-once del mismo pedido produce una sola fila (los duplicados se saltan con un log de debug).
 5. **Tolerante a mensajes basura (poison pill):** un mensaje ilegible o inválido se
@@ -66,7 +69,7 @@ Respuesta (entidad `Notificacion`):
 
 ### Cuerpo de la notificación (ejemplo real del E2E)
 
-Asunto: `Pedido recibido - 1`. Cuerpo en texto plano:
+Asunto: `Pastelería My Dreams — Recibimos tu pedido`. Cuerpo en texto plano:
 
 ```
 Hola E2E Test,
@@ -80,6 +83,25 @@ Total: $30000
 Estado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.
 ```
 
+### Correo con marca y multipart
+
+El correo que llega al cliente **no es solo ese texto**: `EmailSenderService` construye un
+mensaje `multipart/alternative` con dos partes:
+
+* **HTML** (render de la plantilla `src/main/resources/mail/pedido-recibido.html`): logo
+  embebido por `cid:` desde `src/main/resources/mail/logo-pasteleria.png`, saludo personalizado,
+  detalle de productos y el **código de seguimiento** como texto copiable.
+* **Texto plano**: el cuerpo de arriba, como fallback para clientes que no renderizan HTML.
+
+El remitente se muestra como **`Pastelería My Dreams <MAIL_FROM>`**
+(`app.mail.from-name`), y el link de seguimiento usa `app.mail.site-url` (el sitio
+estático del equipo). Ambos campos escapados (HTML + `InternetAddress`) para evitar
+inyección de cabeceras o HTML.
+
+> Nota de dominio: el `codigoSeguimiento` es un espejo de solo lectura del `codigoConsulta`
+> del evento (RF-11). Si el productor no lo envía (servicio desactualizado), la columna queda
+> `NULL` y el correo se arma igual, sin código.
+
 ## 📧 Estado honesto de RF-09: el correo se envía por SMTP si está configurado
 
 **La capacidad de envío existe** (`spring-boot-starter-mail` + `EmailSenderService`),
@@ -91,6 +113,11 @@ estado **`PENDIENTE`** y quedan ahí. Esto es esperado, no es un bug.
 > cinco `MAIL_*` apuntando a un servidor SMTP real, y un pedido E2E terminó en estado
 > **`ENVIADO`** (verificado contra `GET /api/notificaciones`). Las credenciales viven
 > solo en las variables de entorno del unit de systemd, jamás en el repositorio.
+>
+> **Actualizado en vivo (09-10-2026):** se redesplegó con la plantilla de marca +
+> multipart y con el espejo del `codigoConsulta`. E2E verificado: pedido `id=5` →
+> notificación `ENVIADO` con `codigoSeguimiento=d7f13d73dc074a808bb9314e06a6a265`
+> y asunto con marca. Backup del jar anterior: `/opt/servicios/notificaciones.jar.bak-marca`.
 
 | Variable | Ejemplo (placeholder) | Default |
 | :--- | :--- | :--- |
