@@ -43,16 +43,33 @@ class EmailSenderServiceTest {
     }
 
     private EmailSenderService service(String host, String from, String username) {
-        return new EmailSenderService(mailSenderProvider, host, from, username);
+        // from-name and site-url use their production defaults for this suite
+        return new EmailSenderService(mailSenderProvider, host, from, username,
+                "Pastelería My Dreams", "https://tienda.test");
     }
 
     private Notificacion notificacion(String email) {
         Notificacion n = new Notificacion();
         n.setPedidoId(101L);
         n.setEmail(email);
-        n.setAsunto("Pedido recibido - 101");
+        n.setAsunto("Pastelería My Dreams — Recibimos tu pedido");
         n.setCuerpo("Hola Daniela,");
         return n;
+    }
+
+    // First text/plain part of the (now multipart) message, null when absent
+    private static String textoPlano(jakarta.mail.Part parte) throws Exception {
+        Object contenido = parte.getContent();
+        if (contenido instanceof jakarta.mail.Multipart mp) {
+            for (int i = 0; i < mp.getCount(); i++) {
+                String resultado = textoPlano(mp.getBodyPart(i));
+                if (resultado != null) {
+                    return resultado;
+                }
+            }
+            return null;
+        }
+        return parte.isMimeType("text/plain") ? contenido.toString() : null;
     }
 
     @Test
@@ -77,9 +94,14 @@ class EmailSenderServiceTest {
         verify(mailSender).send(mensaje);
         assertEquals("daniela@ejemplo.cl",
                 mensaje.getRecipients(Message.RecipientType.TO)[0].toString());
-        assertEquals("Pedido recibido - 101", mensaje.getSubject());
-        assertTrue(mensaje.getContent().toString().contains("Hola Daniela"),
-                "The body must carry the customer-facing text");
+        assertEquals("Pastelería My Dreams — Recibimos tu pedido", mensaje.getSubject());
+        // The body now travels as a multipart/alternative: the text/plain
+        // fallback must still carry the customer-facing text
+        assertTrue(mensaje.getContent() instanceof jakarta.mail.Multipart,
+                "The message must be multipart after RF-09 branding");
+        String texto = textoPlano(mensaje);
+        assertTrue(texto != null && texto.contains("Hola Daniela"),
+                "The plain part must carry the customer-facing text");
     }
 
     @Test
@@ -90,7 +112,11 @@ class EmailSenderServiceTest {
 
         assertTrue(s.enviar(notificacion("daniela@ejemplo.cl")));
 
-        assertEquals("smtp-user@example.test", mensaje.getFrom()[0].toString());
+        jakarta.mail.internet.InternetAddress desde =
+                (jakarta.mail.internet.InternetAddress) mensaje.getFrom()[0];
+        assertEquals("smtp-user@example.test", desde.getAddress());
+        assertEquals("Pastelería My Dreams", desde.getPersonal(),
+                "Even the fallback address must show the brand display name");
     }
 
     @Test

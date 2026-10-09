@@ -27,9 +27,10 @@ class NotificacionConsumoIntegrationTest {
     private static final String TOPICO = "pedidos";
 
     // Exact JSON contract published by pedidos-service (record PedidoCreadoEvent
-    // serialized with the Spring ObjectMapper: ISO-8601 LocalDateTime)
+    // serialized with the Spring ObjectMapper: ISO-8601 LocalDateTime, plus the
+    // opaque tracking code codigoConsulta appended by RF-11)
     private static final String EVENTO_PEDIDO_101 = """
-            {"evento":"PedidoCreado","id":101,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","producto":"Torta de chocolate, Cupcakes vainilla","cantidad":7,"total":33990,"fecha":"2026-10-01T12:30:00"}""";
+            {"evento":"PedidoCreado","id":101,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","producto":"Torta de chocolate, Cupcakes vainilla","cantidad":7,"total":33990,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9"}""";
 
     private static final String EVENTO_PEDIDO_102 = """
             {"evento":"PedidoCreado","id":102,"cliente":"Raul Pino","email":"raul@ejemplo.cl","producto":"Kuchen de manzana","cantidad":2,"total":9980,"fecha":"2026-10-01T12:35:00"}""";
@@ -60,7 +61,9 @@ class NotificacionConsumoIntegrationTest {
         // The row carries the expected content and the initial PENDIENTE state
         // (these tests run without SMTP configured, so no email is attempted)
         Notificacion guardada = notificacionRepository.findByPedidoId(101L).orElseThrow();
-        assertEquals("Pedido recibido - 101", guardada.getAsunto());
+        assertEquals("Pastelería My Dreams — Recibimos tu pedido", guardada.getAsunto());
+        assertEquals("0a1b2c3d4e5f60718293a4b5c6d7e8f9", guardada.getCodigoSeguimiento(),
+                "The tracking code published by pedidos-service must be persisted");
         assertEquals("Daniela Soto", guardada.getCliente());
         assertEquals("daniela@ejemplo.cl", guardada.getEmail());
         assertEquals("PENDIENTE", guardada.getEstado());

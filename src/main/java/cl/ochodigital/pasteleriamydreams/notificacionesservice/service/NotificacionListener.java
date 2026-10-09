@@ -3,6 +3,7 @@ package cl.ochodigital.pasteleriamydreams.notificacionesservice.service;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.event.PedidoCreadoEvent;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.model.Notificacion;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.repository.NotificacionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,10 @@ public class NotificacionListener {
 
     // The consumer group this service belongs to
     private static final String GRUPO_CONSUMIDOR = "notificaciones";
+
+    // Branded subject stored on the row and sent for every confirmation email:
+    // the brand only, never the internal sequential id (RF-11 keeps it private)
+    static final String ASUNTO_CONFIRMACION = "Pastelería My Dreams — Recibimos tu pedido";
 
     private final NotificacionRepository notificacionRepository;
     private final ObjectMapper objectMapper;
@@ -52,7 +57,8 @@ public class NotificacionListener {
                 return;
             }
 
-            Notificacion notificacion = construirNotificacion(evento);
+            Notificacion notificacion = construirNotificacion(evento,
+                    extraerCodigoSeguimiento(payload));
             notificacionRepository.save(notificacion);
             log.info("Notification persisted for order {} with state PENDIENTE", evento.id());
             aplicarEnvioCorreo(notificacion);
@@ -87,17 +93,37 @@ public class NotificacionListener {
         }
     }
 
-    // Builds the notification row from the event data
-    private Notificacion construirNotificacion(PedidoCreadoEvent evento) {
+    // Builds the notification row from the event data plus the opaque tracking
+    // code (nullable: events published before RF-11 do not carry one)
+    private Notificacion construirNotificacion(PedidoCreadoEvent evento, String codigoSeguimiento) {
         Notificacion notificacion = new Notificacion();
         notificacion.setPedidoId(evento.id());
         notificacion.setCliente(valorPorDefecto(evento.cliente(), "cliente"));
         notificacion.setEmail(valorPorDefecto(evento.email(), "sin email"));
-        notificacion.setAsunto("Pedido recibido - " + evento.id());
+        notificacion.setAsunto(ASUNTO_CONFIRMACION);
         notificacion.setCuerpo(armarCuerpo(evento));
+        notificacion.setCodigoSeguimiento(codigoSeguimiento);
         notificacion.setEstado("PENDIENTE");
         notificacion.setFecha(java.time.LocalDateTime.now());
         return notificacion;
+    }
+
+    // codigoConsulta (RF-11) rides along in the payload but the mirror record
+    // does not model it, so it is read defensively from the raw JSON. Never
+    // throws: a missing or odd value simply degrades to null.
+    private String extraerCodigoSeguimiento(String payload) {
+        try {
+            JsonNode nodo = objectMapper.readTree(payload);
+            JsonNode codigo = nodo != null ? nodo.get("codigoConsulta") : null;
+            if (codigo == null || codigo.isNull()) {
+                return null;
+            }
+            String valor = codigo.asText();
+            return (valor == null || valor.isBlank()) ? null : valor.trim();
+        } catch (Exception e) {
+            log.debug("Could not read codigoConsulta from payload: {}", e.getMessage());
+            return null;
+        }
     }
 
     // Plain-text body with cliente / producto / cantidad / total from the event

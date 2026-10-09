@@ -30,6 +30,12 @@ public class Notificacion {
     @Column(length = 2000)
     private String cuerpo;
 
+    // Opaque tracking code (RF-11) carried by the PedidoCreado event. Stored so
+    // the branded email can be rebuilt from the row (nullable: older events may
+    // not carry it). spring.jpa.hibernate.ddl-auto=update creates the column.
+    @Column(length = 64)
+    private String codigoSeguimiento;
+
     // PENDIENTE until the email step runs; ENVIADO / ERROR once SMTP is attempted
     private String estado = "PENDIENTE";
 

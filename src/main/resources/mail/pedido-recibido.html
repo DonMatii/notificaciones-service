@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{marca}}</title>
+</head>
+<body style="margin:0;padding:0;background:#f7f2f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2f4;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+               style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;">
+          <!-- Header: inline logo (cid:) over the brand color -->
+          <tr>
+            <td align="center" style="background:#e75480;padding:24px;">
+              <img src="cid:logo" alt="{{marca}}" width="140" style="display:block;border:0;">
+              <p style="margin:12px 0 0;color:#ffffff;font-size:18px;font-weight:bold;letter-spacing:1px;">{{marca}}</p>
+            </td>
+          </tr>
+          <!-- Body: greeting, order summary and optional tracking block -->
+          <tr>
+            <td style="padding:32px 28px;">
+              <h1 style="margin:0 0 16px;font-size:22px;color:#2b2b2b;">Hola, {{cliente}}!</h1>
+              <p style="margin:0 0 20px;font-size:15px;line-height:1.5;color:#4a4a4a;">
+                Recibimos tu pedido y ya lo estamos preparando. Aquí tienes el resumen:
+              </p>
+              {{resumen}}
+              {{seguimiento}}
+              <p style="margin:24px 0 0;font-size:14px;line-height:1.5;color:#4a4a4a;">
+                Estado: pendiente de confirmación. Te avisaremos por correo cuando el pedido sea despachado.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer: brand signature -->
+          <tr>
+            <td align="center" style="background:#f7f2f4;padding:20px;border-top:1px solid #f0e0e6;">
+              <p style="margin:0;font-size:13px;color:#8a6d7b;">— {{marca}}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
