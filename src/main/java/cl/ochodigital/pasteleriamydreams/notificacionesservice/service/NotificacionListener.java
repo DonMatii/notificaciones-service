@@ -135,14 +135,13 @@ public class NotificacionListener {
 
         return String.format(
                 "Hola %s,%n%n"
-                        + "Tu pedido %d fue recibido correctamente.%n%n"
+                        + "Tu pedido fue recibido correctamente.%n%n"
                         + "Productos: %s%n"
                         + "Cantidad total de articulos: %s%n"
                         + "Total: %s%n%n"
                         + "Estado: pendiente de confirmacion. Enviaremos la confirmacion "
                         + "por correo electronico cuando el pedido sea despachado.",
                 cliente,
-                evento.id() != null ? evento.id() : 0L,
                 producto,
                 cantidad,
                 total);

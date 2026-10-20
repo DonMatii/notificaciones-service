@@ -72,6 +72,10 @@ class NotificacionConsumoIntegrationTest {
                 "Body must include the products from the event");
         assertTrue(guardada.getCuerpo().contains("33990"),
                 "Body must include the total from the event");
+        assertTrue(guardada.getCuerpo().contains("Tu pedido fue recibido correctamente"),
+                "Body must confirm the order in generic wording");
+        assertTrue(!guardada.getCuerpo().contains("Tu pedido 101"),
+                "The sequential id must not leak into client-facing copy");
 
         // 2) Publish the SAME event again, followed by a sentinel order.
         //    The topic has one partition and the consumer is single-threaded, so the

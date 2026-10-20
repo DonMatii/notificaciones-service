@@ -42,7 +42,7 @@ Respuesta (entidad `Notificacion`):
     "cliente": "E2E Test",
     "email": "e2e@test.cl",
     "asunto": "Pastelería My Dreams — Recibimos tu pedido",
-    "cuerpo": "Hola E2E Test,\n\nTu pedido 1 fue recibido correctamente.\n\nProductos: Torta E2E\nCantidad total de articulos: 2\nTotal: $30000\n\nEstado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.",
+    "cuerpo": "Hola E2E Test,\n\nTu pedido fue recibido correctamente.\n\nProductos: Torta E2E\nCantidad total de articulos: 2\nTotal: $30000\n\nEstado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.",
     "codigoSeguimiento": "d7f13d73dc074a808bb9314e06a6a265",
     "estado": "ENVIADO",
     "fecha": "2026-10-09T12:58:52.662"
@@ -74,7 +74,7 @@ Asunto: `Pastelería My Dreams — Recibimos tu pedido`. Cuerpo en texto plano:
 ```
 Hola E2E Test,
 
-Tu pedido 1 fue recibido correctamente.
+Tu pedido fue recibido correctamente.
 
 Productos: Torta E2E
 Cantidad total de articulos: 2
