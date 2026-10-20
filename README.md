@@ -138,6 +138,42 @@ correo con el asunto y el cuerpo ya construidos y guarda el resultado:
 Ningún credencial vive en el repositorio: todo llega por variables de entorno, igual que
 `DB_PASS` y `APP_ADMIN_API_KEY`.
 
+### 📬 Correo local con Mailpit (demo sin credenciales)
+
+Para demostrar el RF-09 en local no hace falta un SMTP real: **Mailpit** es un servidor
+de correo de desarrollo que corre en Docker, no requiere credenciales y guarda todos los
+correos enviados para verlos en una interfaz web.
+
+```powershell
+docker run -d --name pasteleria-mailpit -p 1025:1025 -p 8025:8025 `
+  -e MP_SMTP_AUTHACCEPTANY=true -e MP_SMTP_AUTHALLOWINSECURE=true axllent/mailpit
+```
+
+`application.properties` fija `mail.smtp.auth=true`, así que JavaMail **siempre** intenta
+autenticarse; por eso Mailpit se levanta aceptando cualquier credencial (`AUTHACCEPTANY`)
+también sin TLS (`AUTHALLOWINSECURE`), y el servicio se arranca con credenciales dummy:
+
+```powershell
+$env:MAIL_HOST="localhost"
+$env:MAIL_PORT="1025"
+$env:MAIL_USER="local"
+$env:MAIL_PASS="local"
+$env:MAIL_FROM="no-reply@pasteleriamydreams.cl"
+$env:MAIL_FROM_NAME="Pastelería My Dreams"
+$env:MAIL_SITE_URL="http://localhost:5173"   # el enlace de seguimiento apunta al frontend local
+.\mvnw.cmd spring-boot:run
+```
+
+* Interfaz para ver los correos: <http://localhost:8025>
+* Cada pedido nuevo que llega por Kafka aparece ahí en segundos (estado `ENVIADO`).
+* En AWS no se usa Mailpit: la EC2 apunta al SMTP real con sus variables `MAIL_*`.
+
+> **Gotcha local (idempotencia por `pedido_id`):** el listener salta cualquier notificación
+> ya existente para ese ID. Si se reinicia la base de `pedidos` sin vaciar también
+> `notificaciones` (o si el topic entrega eventos de desarrollos anteriores), los pedidos
+> nuevos que repiten un ID quedan silenciados y nunca envían su correo. Prevención al
+> reiniciar en local: vaciar `notificaciones` junto con `pedidos`.
+
 ## 🐳 Kafka local (broker)
 
 El broker vive en el repositorio de `pedidos-service` (no hay compose en este repo):
