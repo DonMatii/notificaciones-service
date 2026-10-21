@@ -174,6 +174,45 @@ $env:MAIL_SITE_URL="http://localhost:5173"   # el enlace de seguimiento apunta a
 > nuevos que repiten un ID quedan silenciados y nunca envían su correo. Prevención al
 > reiniciar en local: vaciar `notificaciones` junto con `pedidos`.
 
+### ✉️ Correo real con Gmail SMTP (configuración activa en local)
+
+Mailpit sirve para demostrar el flujo, pero sus correos caen en una bandeja **web local**
+que hay que abrir en el navegador (`http://localhost:8025`): **no llegan a ninguna casilla**.
+Cuando el correo tiene que llegar de verdad, se apunta al SMTP de Gmail.
+
+Gmail **no acepta la contraseña normal de la cuenta**: exige una *contraseña de aplicaciones*
+de 16 caracteres, y solo se puede generar con la verificación en dos pasos activada.
+
+1. <https://myaccount.google.com/apppasswords>. Si no aparece, entrar en *Seguridad →
+   Verificación en dos pasos* y **bajar hasta el final de la página**.
+2. En *Nombre de la app* escribir cualquier cosa (ej. `Pasteleria`) y apretar **Crear**.
+3. Google muestra los 16 caracteres **una sola vez**: copiarlos ahí mismo.
+
+```powershell
+$env:MAIL_HOST="smtp.gmail.com"
+$env:MAIL_PORT="587"
+$env:MAIL_USER="tu-correo@gmail.com"
+$env:MAIL_PASS="los16caracteressinespacios"
+$env:MAIL_FROM="tu-correo@gmail.com"
+.\mvnw.cmd spring-boot:run
+```
+
+* **`MAIL_FROM` debe ser igual a `MAIL_USER`.** Gmail rechaza el envío si el remitente no es
+  la cuenta autenticada, por lo que el `no-reply@pasteleriamydreams.cl` de Mailpit no sirve
+  en esta configuración.
+* El destinatario **no es una configuración**: es el correo que el cliente escribe en el
+  formulario de `/pedido`. Para probar, usar el propio correo en el pedido de prueba.
+* El primer envío de una cuenta recién usada para SMTP suele caer en **Correos no deseados**.
+* **Las variables viven solo en el proceso.** Si se reinicia el servicio sin re-exportarlas,
+  `EmailSenderService` queda deshabilitado y solo escribe `SMTP not configured` en el log:
+  no es un error de arranque, así que pasa inadvertido. Es el síntoma típico de "dejó de
+  llegar el correo".
+
+> **Verificado E2E en local (20-10-2026):** pedido de prueba `id=16` → el log del servicio
+> confirmó `Email sent for order 16 ...` y el correo se recibió en la bandeja real.
+> Configuración 100 % por variables de entorno: cero cambios de código y ninguna credencial
+> en el repositorio.
+
 ## 🐳 Kafka local (broker)
 
 El broker vive en el repositorio de `pedidos-service` (no hay compose en este repo):
@@ -211,6 +250,11 @@ Requisitos: JDK 21, MySQL 8 local con la base `pasteleria_my_dreams` y el broker
 docker start pasteleria-kafka
 .\mvnw.cmd spring-boot:run   # servicio en el puerto 8083
 ```
+
+> Sin variables `MAIL_*` el servicio arranca igual pero **no envía correos**: las
+> notificaciones quedan en estado `PENDIENTE`, sin ningún error visible. Para que lleguen,
+> ver más arriba **Correo local con Mailpit** (demo, sin credenciales) o **Correo real con
+> Gmail SMTP** (configuración activa en local).
 
 ## 🧪 Tests
 
