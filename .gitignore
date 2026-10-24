@@ -41,3 +41,10 @@ build/
 .atl/
 .codegraph/
 odd/
+
+# Credenciales locales (backup legible, NO commitear)
+credenciales-local.md
+
+# Logs locales del lanzador
+run.log
+run-err.log
