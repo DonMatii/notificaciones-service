@@ -197,6 +197,13 @@ $env:MAIL_FROM="tu-correo@gmail.com"
 .\mvnw.cmd spring-boot:run
 ```
 
+> **Atajo incluido en el repo:** las credenciales viven en `.env.local` (gitignorado) y
+> `.\start-local.ps1` las carga como variables `MAIL_*` antes de arrancar el servicio
+> (`-Detached` lo deja corriendo desacoplado, con log en `run.log` / `run-err.log`).
+> El script exige que `MAIL_PASS` no sea un placeholder y solo imprime el **largo** de la
+> contraseña, nunca su valor. Como el `.env.local` se recarga en **cada arranque**, las
+> variables no se pierden al reiniciar la terminal ni el servicio.
+
 * **`MAIL_FROM` debe ser igual a `MAIL_USER`.** Gmail rechaza el envío si el remitente no es
   la cuenta autenticada, por lo que el `no-reply@pasteleriamydreams.cl` de Mailpit no sirve
   en esta configuración.
@@ -248,7 +255,8 @@ Requisitos: JDK 21, MySQL 8 local con la base `pasteleria_my_dreams` y el broker
 
 ```powershell
 docker start pasteleria-kafka
-.\mvnw.cmd spring-boot:run   # servicio en el puerto 8083
+.\start-local.ps1            # recomendado: lee .env.local con el correo (puerto 8083)
+.\mvnw.cmd spring-boot:run   # alternativa directa, sin variables MAIL_* (no envía correos)
 ```
 
 > Sin variables `MAIL_*` el servicio arranca igual pero **no envía correos**: las
