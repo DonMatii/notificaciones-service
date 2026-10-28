@@ -44,6 +44,8 @@ odd/
 
 # Credenciales locales (backup legible, NO commitear)
 credenciales-local.md
+.env.local
+!.env.local.example
 
 # Logs locales del lanzador
 run.log

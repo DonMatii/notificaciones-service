@@ -6,7 +6,9 @@
     .\start-local.ps1             # arranca en esta terminal (Ctrl+C para parar)
     .\start-local.ps1 -Detached   # arranca desacoplado (log en run.log / run-err.log)
 
-  Requisitos: .env.local con MAIL_HOST, MAIL_PORT, MAIL_USER, MAIL_PASS, MAIL_FROM.
+  Requisitos: .env.local con MAIL_HOST, MAIL_PORT, MAIL_USER, MAIL_PASS, MAIL_FROM
+  y APP_ADMIN_API_KEY (ver .env.local.example). La API key debe coincidir con
+  VITE_ADMIN_API_KEY del frontend; sin ella los endpoints protegidos dan 503.
   (La contrasena es una "contrasena de aplicacion" de Google: myaccount.google.com/apppasswords)
 #>
 param([switch]$Detached)
@@ -34,14 +36,18 @@ Get-Content $envFile | ForEach-Object {
 }
 
 # Verifica minimas + que la contrasena no quede como placeholder
-$faltan = @("MAIL_HOST","MAIL_USER","MAIL_PASS","MAIL_FROM") | Where-Object { -not (Get-Item "Env:$_" -ErrorAction SilentlyContinue) }
+$faltan = @("MAIL_HOST","MAIL_USER","MAIL_PASS","MAIL_FROM","APP_ADMIN_API_KEY") | Where-Object { -not (Get-Item "Env:$_" -ErrorAction SilentlyContinue) }
 if ($faltan) { Write-Error "Faltan en .env.local: $($faltan -join ', ')"; exit 1 }
 if ($env:MAIL_PASS -like "PEGA_AQUI*") {
   Write-Error "Todavia no pusiste la contrasena real en .env.local (MAIL_PASS)."
   exit 1
 }
+if ($env:APP_ADMIN_API_KEY -like "PEGA_AQUI*") {
+  Write-Error "Todavia no pusiste la clave real en .env.local (APP_ADMIN_API_KEY)."
+  exit 1
+}
 
-Write-Host "Cargado: MAIL_HOST=$env:MAIL_HOST | MAIL_USER=$env:MAIL_USER | MAIL_PASS=($($env:MAIL_PASS.Length) chars) | MAIL_FROM=$env:MAIL_FROM"
+Write-Host "Cargado: MAIL_HOST=$env:MAIL_HOST | MAIL_USER=$env:MAIL_USER | MAIL_PASS=($($env:MAIL_PASS.Length) chars) | MAIL_FROM=$env:MAIL_FROM | APP_ADMIN_API_KEY=($($env:APP_ADMIN_API_KEY.Length) chars)"
 
 if ($Detached) {
   # El hijo (cmd -> mvnw -> java) hereda las variables Env: del proceso actual

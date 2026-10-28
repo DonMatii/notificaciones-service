@@ -198,9 +198,9 @@ $env:MAIL_FROM="tu-correo@gmail.com"
 ```
 
 > **Atajo incluido en el repo:** las credenciales viven en `.env.local` (gitignorado) y
-> `.\start-local.ps1` las carga como variables `MAIL_*` antes de arrancar el servicio
+> `.\start-local.ps1` las carga como variables `MAIL_*` y `APP_ADMIN_API_KEY` antes de arrancar el servicio
 > (`-Detached` lo deja corriendo desacoplado, con log en `run.log` / `run-err.log`).
-> El script exige que `MAIL_PASS` no sea un placeholder y solo imprime el **largo** de la
+> El script exige que `MAIL_PASS` y `APP_ADMIN_API_KEY` no sean placeholders y solo imprime el **largo** de la
 > contraseña, nunca su valor. Como el `.env.local` se recarga en **cada arranque**, las
 > variables no se pierden al reiniciar la terminal ni el servicio.
 
