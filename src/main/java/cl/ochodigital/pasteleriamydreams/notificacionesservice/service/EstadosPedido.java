@@ -18,14 +18,16 @@ public final class EstadosPedido {
             "DESPACHADO", "Despachado",
             "ENTREGADO", "Entregado");
 
-    // One sentence per state: what this step actually means for the customer
+    // One sentence per state: what this step actually means for the customer.
+    // Concrete, no vague "en unos días": every message says what happens next.
     private static final Map<String, String> MENSAJES = Map.of(
             "EN_PREPARACION", "Tu pedido ya está en preparación en la pastelería. "
-                    + "En cuanto esté listo lo despachamos y te avisamos por correo.",
-            "DESPACHADO", "Tu pedido salió de la pastelería y va en camino hacia ti. "
-                    + "En unos días te lo entregamos.",
+                    + "Nuestro equipo lo está elaborando con mucho cariño y, en cuanto esté listo, "
+                    + "lo despachamos y te avisamos por correo.",
+            "DESPACHADO", "Tu pedido salió de la pastelería y está en camino hacia tu domicilio. "
+                    + "Te avisaremos por correo cuando sea entregado.",
             "ENTREGADO", "Tu pedido fue entregado. ¡Gracias por confiar en Pastelería "
-                    + "My Dreams! Si algo no estuvo bien, respóndenos este correo.");
+                    + "My Dreams! Si algo no estuvo bien, respóndenos este correo y lo solucionamos.");
 
     private EstadosPedido() {
     }

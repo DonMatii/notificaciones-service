@@ -201,6 +201,7 @@ public class EmailSenderService {
         return plantilla
                 .replace("{{marca}}", escapar(nombreMarca()))
                 .replace("{{cliente}}", escapar(cliente == null || cliente.isBlank() ? "cliente" : cliente))
+                .replace("{{pedido}}", String.valueOf(notificacion.getPedidoId()))
                 .replace("{{estado}}", escapar(EstadosPedido.etiqueta(notificacion.getEstadoPedido())))
                 .replace("{{mensaje}}", escapar(EstadosPedido.mensaje(notificacion.getEstadoPedido())))
                 .replace("{{resumen}}", resumenTotal(notificacion))
