@@ -1,6 +1,7 @@
 package cl.ochodigital.pasteleriamydreams.notificacionesservice.service;
 
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.model.Notificacion;
+import cl.ochodigital.pasteleriamydreams.notificacionesservice.model.NotificacionEstado;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -38,6 +39,9 @@ public class EmailSenderService {
 
     // Template and inline logo, both on the classpath (src/main/resources/mail)
     private static final String PLANTILLA = "mail/pedido-recibido.html";
+    // Template for the status-change emails (S4): same shell and same inline logo,
+    // but the headline is the new state instead of the order summary
+    private static final String PLANTILLA_ESTADO = "mail/pedido-estado.html";
     private static final String LOGO = "mail/logo-pasteleria.png";
     private static final String CID_LOGO = "logo";
 
@@ -47,6 +51,8 @@ public class EmailSenderService {
     private static final String ETIQUETA_PRODUCTOS = "Productos: ";
     private static final String ETIQUETA_CANTIDAD = "Cantidad total de articulos: ";
     private static final String ETIQUETA_TOTAL = "Total: ";
+    // Label written by NotificacionEstadoListener#armarCuerpo for the status emails
+    private static final String ETIQUETA_TOTAL_ESTADO = "Total del pedido: ";
 
     // Resolved lazily: the JavaMailSender bean does not exist when spring.mail.host
     // is absent from the environment (e.g. the hermetic test classpath), and eager
@@ -123,6 +129,97 @@ public class EmailSenderService {
                     notificacion.getPedidoId(), e.getMessage());
             return false;
         }
+    }
+
+    // Status-change email (S4). Same transport, same branded shell and same
+    // contract as enviar(Notificacion): enablement decided only by spring.mail.host,
+    // blank recipients skipped without counting as an attempt, never throws, and
+    // true only on a confirmed send. What changes is the template and the fact
+    // that the headline is the state the customer is moving TO.
+    public boolean enviar(NotificacionEstado notificacion) {
+        if (!habilitado()) {
+            log.info("SMTP not configured (spring.mail.host is blank), status email not sent for order {}",
+                    notificacion != null ? notificacion.getPedidoId() : null);
+            return false;
+        }
+        if (notificacion == null || !hasRealRecipient(notificacion.getEmail())) {
+            log.info("Skipping status email for order {}: no real recipient ({})",
+                    notificacion != null ? notificacion.getPedidoId() : null,
+                    notificacion != null ? notificacion.getEmail() : null);
+            return false;
+        }
+
+        String remitente = resolveFrom();
+        if (remitente == null || remitente.isBlank()) {
+            log.error("Cannot send status email for order {}: neither app.mail.from nor "
+                    + "spring.mail.username is configured", notificacion.getPedidoId());
+            return false;
+        }
+
+        try {
+            JavaMailSender mailSender = mailSenderProvider.getObject();
+            MimeMessage mensaje = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mensaje,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            helper.setFrom(new InternetAddress(remitente, nombreMarca(), StandardCharsets.UTF_8.name()));
+            helper.setTo(notificacion.getEmail().trim());
+            helper.setSubject(notificacion.getAsunto());
+            helper.setText(textoPlano(notificacion), construirHtml(notificacion));
+            helper.addInline(CID_LOGO, new ClassPathResource(LOGO));
+            mailSender.send(mensaje);
+            log.info("Status email sent for order {} ({}) to {}", notificacion.getPedidoId(),
+                    notificacion.getEstadoPedido(), notificacion.getEmail());
+            return true;
+        } catch (Exception e) {
+            log.error("Could not send status email for order {}: {}",
+                    notificacion.getPedidoId(), e.getMessage());
+            return false;
+        }
+    }
+
+    // Plain-text fallback for the status email: the persisted body plus the
+    // tracking lines when a code exists. Mirrors textoPlano(Notificacion).
+    private String textoPlano(NotificacionEstado notificacion) {
+        String base = notificacion.getCuerpo() != null ? notificacion.getCuerpo() : "";
+        String codigo = notificacion.getCodigoSeguimiento();
+        if (codigo == null || codigo.isBlank()) {
+            return base;
+        }
+        return base + "\n\nCodigo de seguimiento: " + codigo.trim()
+                + "\nConsultalo en: " + urlEstado();
+    }
+
+    // Fills the status template. Unlike the confirmation email, the headline and
+    // the sentence come straight from the state code via EstadosPedido, so the
+    // wording can never drift from what the listener wrote into the plain body.
+    private String construirHtml(NotificacionEstado notificacion) throws Exception {
+        String plantilla;
+        try (var entrada = new ClassPathResource(PLANTILLA_ESTADO).getInputStream()) {
+            plantilla = new String(entrada.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        String cliente = notificacion.getCliente();
+        return plantilla
+                .replace("{{marca}}", escapar(nombreMarca()))
+                .replace("{{cliente}}", escapar(cliente == null || cliente.isBlank() ? "cliente" : cliente))
+                .replace("{{estado}}", escapar(EstadosPedido.etiqueta(notificacion.getEstadoPedido())))
+                .replace("{{mensaje}}", escapar(EstadosPedido.mensaje(notificacion.getEstadoPedido())))
+                .replace("{{resumen}}", resumenTotal(notificacion))
+                .replace("{{seguimiento}}", bloqueSeguimiento(notificacion.getCodigoSeguimiento()));
+    }
+
+    // One small table with the order total, parsed from the plain body with the
+    // same label mechanism the confirmation email already uses. Absent label
+    // degrades to no table rather than to a broken layout.
+    private String resumenTotal(NotificacionEstado notificacion) {
+        String total = extraerEtiqueta(notificacion.getCuerpo(), ETIQUETA_TOTAL_ESTADO);
+        if (total == null) {
+            return "";
+        }
+        StringBuilder tabla = new StringBuilder(
+                "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+                        + "style=\"border-collapse:collapse;\">");
+        filaResumen(tabla, "Total del pedido", total);
+        return tabla.append("</table>").toString();
     }
 
     // app.mail.from wins; spring.mail.username is the fallback when it is blank
