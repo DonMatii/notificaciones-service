@@ -113,6 +113,14 @@ public class NotificacionEstadoListener {
                 + EstadosPedido.etiqueta(evento.estadoNuevo()));
         notificacion.setCuerpo(armarCuerpo(evento));
         notificacion.setCodigoSeguimiento(codigoSeguimiento);
+        // Guardar productos serializados para renderizar en HTML
+        try {
+            if (evento.productos() != null) {
+                notificacion.setProductosJson(objectMapper.writeValueAsString(evento.productos()));
+            }
+        } catch (Exception e) {
+            log.debug("No se pudieron serializar productos para pedido {}: {}", evento.id(), e.getMessage());
+        }
         notificacion.setEstadoEnvio("PENDIENTE");
         notificacion.setFecha(LocalDateTime.now());
         return notificacion;

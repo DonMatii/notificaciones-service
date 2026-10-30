@@ -8,9 +8,19 @@ Microservicio de notificaciones del sistema **Pastelería My Dreams**: consume l
 | :--- | :--- | :--- |
 | `version-1` | **Entrega 1** | Sin notificaciones. |
 | `version-2` | **Entrega 2** | Consumidor Kafka del topic `pedidos` que persiste notificaciones. |
-| `version-3` | **Unidad 3** | Pendiente. |
+| `version-3` | **Unidad 3** | Cambio de estado con aviso al cliente: consume `PedidoEstadoCambiado` del topic `pedidos-estados`, persiste una notificación por (pedido, estado) e informa por correo EN_PREPARACION, DESPACHADO y ENTREGADO. |
 
 `main` siempre lleva el último avance del desarrollo.
+
+### Cambios recientes 30-10-2026
+* Contrato `PedidoEstadoCambiadoEvent` ampliado con `productos` (nombre, cantidad, precioUnitario, subtotal) para que el correo de estado muestre el desglose real de lo comprado.
+* `NotificacionEstado` añade `productosJson` y el listener lo serializa al consumir el evento.
+* `EmailSenderService` renderiza ahora la tabla de productos en `pedido-estado.html`; se quitó el “Pedido #{{pedido}}” del header.
+* Mensajes de estado simplificados a tono corto y cálido:
+  * EN_PREPARACION: *Tu pedido está en preparación. Lo estamos elaborando con mucho cariño y te avisamos en cuanto esté listo para despacho.*
+  * DESPACHADO: *Tu pedido ya salió de la pastelería y va en camino a tu domicilio. Te avisamos cuando sea entregado.*
+  * ENTREGADO: *Tu pedido fue entregado. ¡Gracias por confiar en Pastelería My Dreams, que lo disfrutes!*
+* `pedidos-service` publica los items en el evento de cambio de estado con `findByIdWithItems`.
 
 ## 🏢 Equipo de Desarrollo
 Diseñado y construido por **8 Digital**.
@@ -18,7 +28,7 @@ Diseñado y construido por **8 Digital**.
 ## 🛠️ Stack Tecnológico
 * **Lenguaje:** Java 21
 * **Framework:** Spring Boot 3.2.5 + Spring Web + Spring Data JPA (Hibernate)
-* **Mensajería:** Apache Kafka (consumidor, topic `pedidos`)
+* **Mensajería:** Apache Kafka (consumidor, topic `pedidos` y topic `pedidos-estados` con el consumer group `notificaciones-estados`)
 * **Correo:** Spring Mail (SMTP, configurado por variables de entorno `MAIL_*`)
 * **Base de Datos:** MySQL local / Amazon AWS RDS
 * **Gestor de dependencias:** Maven
@@ -101,6 +111,12 @@ inyección de cabeceras o HTML.
 > Nota de dominio: el `codigoSeguimiento` es un espejo de solo lectura del `codigoConsulta`
 > del evento (RF-11). Si el productor no lo envía (servicio desactualizado), la columna queda
 > `NULL` y el correo se arma igual, sin código.
+
+## 📧 Cambio de estado con aviso al cliente (Unidad 3)
+
+`NotificacionEstadoListener` escucha el topic **`pedidos-estados`** con el consumer group **`notificaciones-estados`** y persiste una fila `NotificacionEstado` por **(pedido, estado)** — la idempotencia es la pareja, no solo el `pedidoId`, porque un mismo pedido camina hasta tres estados y debe generar tres correos.
+
+Los estados que avisan al cliente son `EN_PREPARACION`, `DESPACHADO` y `ENTREGADO`. Cada uno usa la plantilla `mail/pedido-estado.html` con el estado como titular, y el correo se envía por SMTP cuando `MAIL_HOST` está configurado (si no, la fila queda en `PENDIENTE`). El estado inicial `RECIBIDO` ya fue confirmado con el correo de recepción del pedido, por lo que no se vuelve a notificar.
 
 ## 📧 Estado honesto de RF-09: el correo se envía por SMTP si está configurado
 

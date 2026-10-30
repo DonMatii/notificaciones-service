@@ -49,6 +49,10 @@ public class NotificacionEstado {
     @Column(length = 64)
     private String codigoSeguimiento;
 
+    // Productos del pedido serializados como JSON para el desglose en el correo
+    @Column(columnDefinition = "TEXT")
+    private String productosJson;
+
     // PENDIENTE until the email step runs; ENVIADO / ERROR once SMTP is attempted.
     // Named estadoEnvio (not estado) to keep it apart from estadoPedido above.
     private String estadoEnvio = "PENDIENTE";

@@ -201,9 +201,9 @@ public class EmailSenderService {
         return plantilla
                 .replace("{{marca}}", escapar(nombreMarca()))
                 .replace("{{cliente}}", escapar(cliente == null || cliente.isBlank() ? "cliente" : cliente))
-                .replace("{{pedido}}", String.valueOf(notificacion.getPedidoId()))
                 .replace("{{estado}}", escapar(EstadosPedido.etiqueta(notificacion.getEstadoPedido())))
                 .replace("{{mensaje}}", escapar(EstadosPedido.mensaje(notificacion.getEstadoPedido())))
+                .replace("{{productos}}", tablaProductos(notificacion))
                 .replace("{{resumen}}", resumenTotal(notificacion))
                 .replace("{{seguimiento}}", bloqueSeguimiento(notificacion.getCodigoSeguimiento()));
     }
@@ -221,6 +221,44 @@ public class EmailSenderService {
                         + "style=\"border-collapse:collapse;\">");
         filaResumen(tabla, "Total del pedido", total);
         return tabla.append("</table>").toString();
+    }
+
+    // Tabla de productos desglosados a partir del JSON serializado en la notificación
+    private String tablaProductos(NotificacionEstado notificacion) {
+        String json = notificacion.getProductosJson();
+        if (json == null || json.isBlank()) {
+            return "";
+        }
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode array = mapper.readTree(json);
+            if (!array.isArray() || array.size() == 0) {
+                return "";
+            }
+            StringBuilder tabla = new StringBuilder(
+                    "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" " +
+                    "style=\"border-collapse:collapse;margin:20px 0;\">");
+            tabla.append("<tr><th align=\"left\" style=\"padding:8px 0;border-bottom:2px solid #e75480;font-family:Arial,sans-serif;font-size:13px;color:#2b2b2b;\">Producto</th>");
+            tabla.append("<th align=\"right\" style=\"padding:8px 0;border-bottom:2px solid #e75480;font-family:Arial,sans-serif;font-size:13px;color:#2b2b2b;\">Cant.</th>");
+            tabla.append("<th align=\"right\" style=\"padding:8px 0;border-bottom:2px solid #e75480;font-family:Arial,sans-serif;font-size:13px;color:#2b2b2b;\">Precio</th>");
+            tabla.append("<th align=\"right\" style=\"padding:8px 0;border-bottom:2px solid #e75480;font-family:Arial,sans-serif;font-size:13px;color:#2b2b2b;\">Subtotal</th></tr>");
+            for (com.fasterxml.jackson.databind.JsonNode nodo : array) {
+                String nombre = nodo.path("nombre").asText("");
+                int cantidad = nodo.path("cantidad").asInt(0);
+                int precio = nodo.path("precioUnitario").asInt(0);
+                int subtotal = nodo.path("subtotal").asInt(0);
+                tabla.append("<tr>");
+                tabla.append("<td style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#4a4a4a;\">").append(escapar(nombre)).append("</td>");
+                tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#4a4a4a;\">").append(cantidad).append("</td>");
+                tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#4a4a4a;\">$").append(precio).append("</td>");
+                tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#2b2b2b;font-weight:bold;\">$").append(subtotal).append("</td>");
+                tabla.append("</tr>");
+            }
+            tabla.append("</table>");
+            return tabla.toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     // app.mail.from wins; spring.mail.username is the fallback when it is blank

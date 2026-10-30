@@ -23,10 +23,10 @@ class NotificacionEstadoListenerTest {
 
     // Exact JSON contract published by pedidos-service (record PedidoEstadoCambiadoEvent)
     private static final String EVENTO_PREPARACION = """
-            {"evento":"PedidoEstadoCambiado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"RECIBIDO","estadoNuevo":"EN_PREPARACION","total":25990,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9"}""";
+            {"evento":"PedidoEstadoCambiado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"RECIBIDO","estadoNuevo":"EN_PREPARACION","total":25990,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[]}""";
 
     private static final String EVENTO_DESPACHADO = """
-            {"evento":"PedidoEstadoCambiado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"EN_PREPARACION","estadoNuevo":"DESPACHADO","total":25990,"fecha":"2026-10-01T13:00:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9"}""";
+            {"evento":"PedidoEstadoCambiado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"EN_PREPARACION","estadoNuevo":"DESPACHADO","total":25990,"fecha":"2026-10-01T13:00:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[]}""";
 
     private NotificacionEstadoRepository repository;
     private EmailSenderService emailSenderService;

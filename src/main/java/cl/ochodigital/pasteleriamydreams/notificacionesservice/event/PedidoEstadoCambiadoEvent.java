@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 // Mirrors the JSON contract published by pedidos-service on the topic
 // `pedidos-estados` (producer record PedidoEstadoCambiadoEvent). Field names must
 // match exactly: evento, id, cliente, email, estadoAnterior, estadoNuevo, total,
-// fecha, codigoConsulta.
+// fecha, codigoConsulta, productos.
 //
 // It lives on its own topic on purpose: Notificacion.pedidoId is unique and the
 // PedidoCreado consumer skips any second event for the same order, so a status
@@ -19,5 +19,13 @@ public record PedidoEstadoCambiadoEvent(
         String estadoNuevo,
         Integer total,
         LocalDateTime fecha,
-        String codigoConsulta) {
+        String codigoConsulta,
+        java.util.List<ProductoEstado> productos) {
+
+    public record ProductoEstado(
+            String nombre,
+            Integer cantidad,
+            Integer precioUnitario,
+            Integer subtotal) {
+    }
 }
