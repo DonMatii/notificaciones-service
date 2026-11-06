@@ -53,6 +53,7 @@ public class EmailSenderService {
     private static final String ETIQUETA_TOTAL = "Total: ";
     // Label written by NotificacionEstadoListener#armarCuerpo for the status emails
     private static final String ETIQUETA_TOTAL_ESTADO = "Total del pedido: ";
+    private static final String ETIQUETA_DESCUENTO = "Descuento aplicado: ";
 
     // Resolved lazily: the JavaMailSender bean does not exist when spring.mail.host
     // is absent from the environment (e.g. the hermetic test classpath), and eager
@@ -219,6 +220,12 @@ public class EmailSenderService {
         StringBuilder tabla = new StringBuilder(
                 "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
                         + "style=\"border-collapse:collapse;\">");
+        // The discount line only exists when the order had one: notifications
+        // persisted before this change keep rendering exactly as they did.
+        String descuento = extraerEtiqueta(notificacion.getCuerpo(), ETIQUETA_DESCUENTO);
+        if (descuento != null) {
+            filaResumen(tabla, "Descuento aplicado", descuento);
+        }
         filaResumen(tabla, "Total del pedido", total);
         return tabla.append("</table>").toString();
     }

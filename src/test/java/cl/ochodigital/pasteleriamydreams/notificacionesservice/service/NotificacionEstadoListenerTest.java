@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -28,6 +29,15 @@ class NotificacionEstadoListenerTest {
 
     private static final String EVENTO_DESPACHADO = """
             {"evento":"PedidoEstadoCambiado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"EN_PREPARACION","estadoNuevo":"DESPACHADO","total":25990,"fecha":"2026-10-01T13:00:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[]}""";
+
+    // The products add up to $21.000 but the order total is $18.900: the
+    // difference is the discount the customer was granted.
+    private static final String EVENTO_CON_DESCUENTO = """
+            {"evento":"PedidoEstadoCambiado","id":302,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"RECIBIDO","estadoNuevo":"EN_PREPARACION","total":18900,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[{"nombre":"Tarta de Yogurt","cantidad":1,"precioUnitario":11000,"subtotal":11000},{"nombre":"Queque Vainilla","cantidad":2,"precioUnitario":5000,"subtotal":10000}]}""";
+
+    // Same products, but the total already matches them: there is no discount.
+    private static final String EVENTO_SIN_DESCUENTO = """
+            {"evento":"PedidoEstadoCambiado","id":303,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"RECIBIDO","estadoNuevo":"EN_PREPARACION","total":21000,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[{"nombre":"Tarta de Yogurt","cantidad":1,"precioUnitario":11000,"subtotal":11000},{"nombre":"Queque Vainilla","cantidad":2,"precioUnitario":5000,"subtotal":10000}]}""";
 
     private NotificacionEstadoRepository repository;
     private EmailSenderService emailSenderService;
@@ -70,6 +80,38 @@ class NotificacionEstadoListenerTest {
         verify(repository, times(1)).save(captor.capture());
         assertTrue(captor.getValue().getCuerpo().contains("Total del pedido: $25.990"),
                 "The status mail total must use the Chilean thousands separator");
+    }
+
+    // The status mail lists the product prices AND the order total, so the
+    // customer sees a total that does not add up unless the discount is shown.
+    @Test
+    void elDescuentoSeGuardaEnElCuerpoDelCorreoDeEstado() {
+        when(emailSenderService.habilitado()).thenReturn(false);
+
+        assertDoesNotThrow(() -> listener.onPedidoEstadoCambiado(EVENTO_CON_DESCUENTO));
+
+        ArgumentCaptor<NotificacionEstado> captor = ArgumentCaptor.forClass(NotificacionEstado.class);
+        verify(repository, times(1)).save(captor.capture());
+        String cuerpo = captor.getValue().getCuerpo();
+        assertTrue(cuerpo.contains("Descuento aplicado: -$2.100"),
+                "The discount must be visible so the prices add up to the total");
+        assertTrue(cuerpo.contains("Total del pedido: $18.900"),
+                "The order total must stay in the body");
+    }
+
+    @Test
+    void sinDescuentoNoSeAgregaLaLinea() {
+        when(emailSenderService.habilitado()).thenReturn(false);
+
+        assertDoesNotThrow(() -> listener.onPedidoEstadoCambiado(EVENTO_SIN_DESCUENTO));
+
+        ArgumentCaptor<NotificacionEstado> captor = ArgumentCaptor.forClass(NotificacionEstado.class);
+        verify(repository, times(1)).save(captor.capture());
+        String cuerpo = captor.getValue().getCuerpo();
+        assertFalse(cuerpo.contains("Descuento aplicado"),
+                "When the total already matches the products there must be no discount line");
+        assertTrue(cuerpo.contains("Total del pedido: $21.000"),
+                "The order total must stay in the body");
     }
 
     @Test

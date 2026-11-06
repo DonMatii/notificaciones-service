@@ -19,7 +19,12 @@ Microservicio de notificaciones del sistema **Pastelería My Dreams**: consume l
   * `EmailSenderService` — el precio y el subtotal de cada producto en la tabla del correo de estado.
 * **Por qué no rompe nada:** el cuerpo en texto plano es el único lugar donde vive el monto y **nada lo vuelve a leer como número** — `EmailSenderService.extraerEtiqueta` toma el resto de la línea como texto (`substring(...).trim()`). Ni el frontend ni `pedidos-service` consumen las notificaciones: el único consumidor del cuerpo es el renderizador del correo.
 * **Verificado en vivo (06-11-2026):** con el stack local completo, un cambio de estado real (pedido 31, total $18.900) generó el correo con `Total del pedido: $18.900`, mientras la notificación anterior del pedido 34 conserva el formato viejo (`$68400`). El correo salió por Gmail SMTP real.
-* **Tests:** `FormatoMonedaTest` (formato con separador de miles y el fallback `sin dato`), más un caso nuevo en cada listener (`NotificacionListenerEmailTest` y `NotificacionEstadoListenerTest`) que fija el formato del total en cada correo. Las fixtures de `EmailSenderMarcaTest` y la aserción de `NotificacionConsumoIntegrationTest` se actualizaron para reflejar el cuerpo que ahora se persiste. Suite del servicio: **37 tests**.
+* **El descuento ahora se ve en el correo de estado:** el correo lista el precio de cada producto y cierra con el total del pedido, pero no mostraba el descuento, así que el cliente veía números que no le cuadraban (productos $25.000 vs. `Total del pedido: $22.500`). El monto del descuento **se deriva del propio evento** — la suma de los subtotales de los productos menos el total — de modo que **no cambia el contrato de Kafka** ni hace falta tocar `pedidos-service`:
+  * `NotificacionEstadoListener` agrega la línea `Descuento aplicado: -$2.500` al cuerpo en texto plano, solo cuando hay descuento (si el total ya coincide con los productos, no aparece la línea).
+  * `EmailSenderService` la transforma en la fila `Descuento aplicado` de la tabla del resumen del correo, usando el mismo mecanismo de etiquetas que ya usa el total.
+* **Por qué no rompe nada:** las notificaciones guardadas antes de este cambio siguen renderizándose igual, porque la fila del descuento depende de que la línea exista en el cuerpo y las notificaciones viejas no la tienen. El cuerpo en texto plano sigue siendo texto para todos los lectores.
+* **Verificado en vivo (06-11-2026):** con el stack local completo, el cambio de estado real del pedido 30 (subtotal $25.000, total $22.500) generó el correo con `Descuento aplicado: -$2.500` y `Total del pedido: $22.500`. El correo salió por Gmail SMTP real.
+* **Tests:** `FormatoMonedaTest` (formato con separador de miles y el fallback `sin dato`), más un caso nuevo en cada listener (`NotificacionListenerEmailTest` y `NotificacionEstadoListenerTest`) que fija el formato del total en cada correo. Las fixtures de `EmailSenderMarcaTest` y la aserción de `NotificacionConsumoIntegrationTest` se actualizaron para reflejar el cuerpo que ahora se persiste. Para el descuento se agregaron `EmailSenderEstadoTest` (primera cobertura del render del correo de estado: el descuento aparece en el HTML y no aparece cuando el total ya coincide con los productos) y dos casos en `NotificacionEstadoListenerTest` (la línea del descuento en el cuerpo, y su ausencia cuando no hay descuento). Suite del servicio: **41 tests**.
 
 ### Cambios recientes 30-10-2026
 * Contrato `PedidoEstadoCambiadoEvent` ampliado con `productos` (nombre, cantidad, precioUnitario, subtotal) para que el correo de estado muestre el desglose real de lo comprado.
@@ -308,7 +313,9 @@ contenedores de Docker en marcha. Cobertura:
   sin que el listener lance excepción,
 * destinatarios vacíos o placeholder `sin email` → se omiten, no cuentan como fallo,
 * los montos de los correos se guardan con el separador de miles chileno (`$25.990`),
-  igual que los muestra el panel web.
+  igual que los muestra el panel web,
+* el correo de estado muestra el descuento cuando lo hubo (`Descuento aplicado: -$2.500`),
+  y no muestra la fila cuando el total ya coincide con la suma de los productos.
 
 ## 🔄 Flujo end-to-end
 

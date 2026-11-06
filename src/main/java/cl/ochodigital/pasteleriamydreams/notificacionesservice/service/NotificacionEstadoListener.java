@@ -135,15 +135,41 @@ public class NotificacionEstadoListener {
         String hasta = EstadosPedido.etiqueta(evento.estadoNuevo());
         String total = FormatoMoneda.clp(evento.total());
 
-        return String.format(
+        StringBuilder cuerpo = new StringBuilder(String.format(
                 "Hola %s,%n%n"
                         + "Tu pedido pasó de %s a %s.%n%n"
                         + "Estado actual: %s%n"
-                        + "%s%n%n"
-                        + "Total del pedido: %s%n",
+                        + "%s%n%n",
                 cliente, desde, hasta, hasta,
-                EstadosPedido.mensaje(evento.estadoNuevo()),
-                total);
+                EstadosPedido.mensaje(evento.estadoNuevo())));
+
+        // The status mail lists the product prices next to the order total, so a
+        // discount has to be spelled out: without this line the customer reads
+        // prices that do not add up to the total. The amount is derived from the
+        // event itself (the products carry their subtotals and the event carries
+        // the final total), so the Kafka contract does not have to change.
+        Integer descuento = calcularDescuento(evento);
+        if (descuento != null) {
+            cuerpo.append(String.format("Descuento aplicado: -%s%n",
+                    FormatoMoneda.clp(descuento)));
+        }
+
+        return cuerpo.append(String.format("Total del pedido: %s%n", total)).toString();
+    }
+
+    // What the customer was discounted: the sum of the product subtotals minus
+    // the order total. Null when there is nothing to discount (no products, no
+    // total, or the total already matches the products).
+    private Integer calcularDescuento(PedidoEstadoCambiadoEvent evento) {
+        if (evento.total() == null || evento.productos() == null || evento.productos().isEmpty()) {
+            return null;
+        }
+        int suma = 0;
+        for (PedidoEstadoCambiadoEvent.ProductoEstado producto : evento.productos()) {
+            suma += (producto.subtotal() != null ? producto.subtotal() : 0);
+        }
+        int descuento = suma - evento.total();
+        return descuento > 0 ? descuento : null;
     }
 
     // codigoConsulta rides along in the payload but the mirror record does not
