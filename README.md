@@ -12,6 +12,15 @@ Microservicio de notificaciones del sistema **Pastelería My Dreams**: consume l
 
 `main` siempre lleva el último avance del desarrollo.
 
+### Cambios recientes 06-11-2026
+* **Montos de los correos con formato chileno:** los correos al cliente armaban los montos concatenando el entero crudo (`"$" + total`), así que un pedido de $68.400 se veía como **`$68400`**, mientras el panel web y la página pública de estado del pedido mostraban **`$68.400`** para ese mismo pedido. Los tres puntos que arman montos ahora pasan por la nueva clase `FormatoMoneda`, que formatea en pesos chilenos (`Locale.of("es","CL")`, separador de miles con punto) y **fija el locale de forma explícita**, para que el resultado no dependa de la configuración de la máquina donde corre el servicio:
+  * `NotificacionListener` — el total del correo de pedido recibido (de ahí también se extrae el total de la tabla HTML del correo, así que el arreglo se propaga solo).
+  * `NotificacionEstadoListener` — el total del correo de cambio de estado (`Total del pedido: $18.900`).
+  * `EmailSenderService` — el precio y el subtotal de cada producto en la tabla del correo de estado.
+* **Por qué no rompe nada:** el cuerpo en texto plano es el único lugar donde vive el monto y **nada lo vuelve a leer como número** — `EmailSenderService.extraerEtiqueta` toma el resto de la línea como texto (`substring(...).trim()`). Ni el frontend ni `pedidos-service` consumen las notificaciones: el único consumidor del cuerpo es el renderizador del correo.
+* **Verificado en vivo (06-11-2026):** con el stack local completo, un cambio de estado real (pedido 31, total $18.900) generó el correo con `Total del pedido: $18.900`, mientras la notificación anterior del pedido 34 conserva el formato viejo (`$68400`). El correo salió por Gmail SMTP real.
+* **Tests:** `FormatoMonedaTest` (formato con separador de miles y el fallback `sin dato`), más un caso nuevo en cada listener (`NotificacionListenerEmailTest` y `NotificacionEstadoListenerTest`) que fija el formato del total en cada correo. Las fixtures de `EmailSenderMarcaTest` y la aserción de `NotificacionConsumoIntegrationTest` se actualizaron para reflejar el cuerpo que ahora se persiste. Suite del servicio: **37 tests**.
+
 ### Cambios recientes 30-10-2026
 * Contrato `PedidoEstadoCambiadoEvent` ampliado con `productos` (nombre, cantidad, precioUnitario, subtotal) para que el correo de estado muestre el desglose real de lo comprado.
 * `NotificacionEstado` añade `productosJson` y el listener lo serializa al consumir el evento.
@@ -52,7 +61,7 @@ Respuesta (entidad `Notificacion`):
     "cliente": "E2E Test",
     "email": "e2e@test.cl",
     "asunto": "Pastelería My Dreams — Recibimos tu pedido",
-    "cuerpo": "Hola E2E Test,\n\nTu pedido fue recibido correctamente.\n\nProductos: Torta E2E\nCantidad total de articulos: 2\nTotal: $30000\n\nEstado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.",
+    "cuerpo": "Hola E2E Test,\n\nTu pedido fue recibido correctamente.\n\nProductos: Torta E2E\nCantidad total de articulos: 2\nTotal: $30.000\n\nEstado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.",
     "codigoSeguimiento": "d7f13d73dc074a808bb9314e06a6a265",
     "estado": "ENVIADO",
     "fecha": "2026-10-09T12:58:52.662"
@@ -88,7 +97,7 @@ Tu pedido fue recibido correctamente.
 
 Productos: Torta E2E
 Cantidad total de articulos: 2
-Total: $30000
+Total: $30.000
 
 Estado: pendiente de confirmacion. Enviaremos la confirmacion por correo electronico cuando el pedido sea despachado.
 ```
@@ -297,7 +306,9 @@ contenedores de Docker en marcha. Cobertura:
 * deshabilitado sin `MAIL_HOST` → la fila queda `PENDIENTE` y no hay intento de envío,
 * habilitado → estado `ENVIADO` cuando el envío funciona y `ERROR` cuando falla,
   sin que el listener lance excepción,
-* destinatarios vacíos o placeholder `sin email` → se omiten, no cuentan como fallo.
+* destinatarios vacíos o placeholder `sin email` → se omiten, no cuentan como fallo,
+* los montos de los correos se guardan con el separador de miles chileno (`$25.990`),
+  igual que los muestra el panel web.
 
 ## 🔄 Flujo end-to-end
 

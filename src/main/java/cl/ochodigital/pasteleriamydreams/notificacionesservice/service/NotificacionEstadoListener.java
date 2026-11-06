@@ -133,7 +133,7 @@ public class NotificacionEstadoListener {
         String cliente = valorPorDefecto(evento.cliente(), "cliente");
         String desde = EstadosPedido.etiqueta(evento.estadoAnterior());
         String hasta = EstadosPedido.etiqueta(evento.estadoNuevo());
-        String total = evento.total() != null ? "$" + evento.total() : "sin dato";
+        String total = FormatoMoneda.clp(evento.total());
 
         return String.format(
                 "Hola %s,%n%n"

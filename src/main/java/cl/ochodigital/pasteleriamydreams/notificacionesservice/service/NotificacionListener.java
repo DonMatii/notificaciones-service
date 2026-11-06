@@ -131,7 +131,7 @@ public class NotificacionListener {
         String cliente = valorPorDefecto(evento.cliente(), "cliente");
         String producto = valorPorDefecto(evento.producto(), "sin detalle");
         String cantidad = evento.cantidad() != null ? evento.cantidad().toString() : "sin dato";
-        String total = evento.total() != null ? "$" + evento.total() : "sin dato";
+        String total = FormatoMoneda.clp(evento.total());
 
         return String.format(
                 "Hola %s,%n%n"

@@ -98,7 +98,7 @@ class EmailSenderMarcaTest {
         String html = html();
         assertTrue(html.contains("Daniela Soto"), "The HTML must greet the customer");
         assertTrue(html.contains("Torta de chocolate"), "The HTML must show the products");
-        assertTrue(html.contains("$25990"), "The HTML must show the order total");
+        assertTrue(html.contains("$25.990"), "The HTML must show the order total");
         assertTrue(html.contains("Pastelería My Dreams"), "The HTML must carry the brand signature");
         assertTrue(html.contains(CODIGO_SEGUIMIENTO),
                 "The tracking code must appear as copyable text in the HTML");
@@ -141,7 +141,7 @@ class EmailSenderMarcaTest {
 
                 Productos: <img src=x onerror=alert(2)>
                 Cantidad total de articulos: 1
-                Total: $1000""");
+                Total: $1.000""");
 
         assertTrue(enviar(inyectada));
 
@@ -312,7 +312,7 @@ class EmailSenderMarcaTest {
 
                 Productos: Torta de chocolate
                 Cantidad total de articulos: 2
-                Total: $25990
+                Total: $25.990
 
                 Estado: pendiente de confirmacion. Enviaremos la confirmacion \
                 por correo electronico cuando el pedido sea despachado.""");

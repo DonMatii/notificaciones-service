@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -87,5 +88,19 @@ class NotificacionListenerEmailTest {
         verify(repository, never()).save(any(Notificacion.class));
         verify(emailSenderService, never()).habilitado();
         verify(emailSenderService, never()).enviar(any(Notificacion.class));
+    }
+
+    // The customer reads the same amount in the mail and in the web panel, so
+    // the total must carry the Chilean thousands separator ("$25.990").
+    @Test
+    void elTotalDelCorreoSeGuardaConSeparadorDeMiles() {
+        when(emailSenderService.habilitado()).thenReturn(false);
+
+        assertDoesNotThrow(() -> listener.onPedidoCreado(EVENTO_PEDIDO_301));
+
+        ArgumentCaptor<Notificacion> captor = ArgumentCaptor.forClass(Notificacion.class);
+        verify(repository, times(1)).save(captor.capture());
+        assertTrue(captor.getValue().getCuerpo().contains("Total: $25.990"),
+                "The order total must use the Chilean thousands separator, like the web panel does");
     }
 }

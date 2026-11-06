@@ -250,8 +250,8 @@ public class EmailSenderService {
                 tabla.append("<tr>");
                 tabla.append("<td style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#4a4a4a;\">").append(escapar(nombre)).append("</td>");
                 tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#4a4a4a;\">").append(cantidad).append("</td>");
-                tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#4a4a4a;\">$").append(precio).append("</td>");
-                tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#2b2b2b;font-weight:bold;\">$").append(subtotal).append("</td>");
+                tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#4a4a4a;\">").append(FormatoMoneda.clp(precio)).append("</td>");
+                tabla.append("<td align=\"right\" style=\"padding:8px 0;font-family:Arial,sans-serif;font-size:14px;color:#2b2b2b;font-weight:bold;\">").append(FormatoMoneda.clp(subtotal)).append("</td>");
                 tabla.append("</tr>");
             }
             tabla.append("</table>");

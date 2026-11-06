@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -55,6 +56,20 @@ class NotificacionEstadoListenerTest {
         assertEquals("RECIBIDO", guardada.getEstadoAnterior());
         assertEquals("PENDIENTE", guardada.getEstadoEnvio());
         assertEquals("0a1b2c3d4e5f60718293a4b5c6d7e8f9", guardada.getCodigoSeguimiento());
+    }
+
+    // Same rule as the order-confirmation mail: the customer must read the
+    // amount with the Chilean thousands separator ("$25.990").
+    @Test
+    void elTotalDelCorreoDeEstadoSeGuardaConSeparadorDeMiles() {
+        when(emailSenderService.habilitado()).thenReturn(false);
+
+        assertDoesNotThrow(() -> listener.onPedidoEstadoCambiado(EVENTO_PREPARACION));
+
+        ArgumentCaptor<NotificacionEstado> captor = ArgumentCaptor.forClass(NotificacionEstado.class);
+        verify(repository, times(1)).save(captor.capture());
+        assertTrue(captor.getValue().getCuerpo().contains("Total del pedido: $25.990"),
+                "The status mail total must use the Chilean thousands separator");
     }
 
     @Test

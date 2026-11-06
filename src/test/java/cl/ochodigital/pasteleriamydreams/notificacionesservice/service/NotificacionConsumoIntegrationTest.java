@@ -70,8 +70,8 @@ class NotificacionConsumoIntegrationTest {
         assertNotNull(guardada.getFecha());
         assertTrue(guardada.getCuerpo().contains("Torta de chocolate"),
                 "Body must include the products from the event");
-        assertTrue(guardada.getCuerpo().contains("33990"),
-                "Body must include the total from the event");
+        assertTrue(guardada.getCuerpo().contains("$33.990"),
+                "Body must include the total from the event, with the Chilean thousands separator");
         assertTrue(guardada.getCuerpo().contains("Tu pedido fue recibido correctamente"),
                 "Body must confirm the order in generic wording");
         assertTrue(!guardada.getCuerpo().contains("Tu pedido 101"),
