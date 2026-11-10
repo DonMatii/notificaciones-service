@@ -3,6 +3,7 @@ package cl.ochodigital.pasteleriamydreams.notificacionesservice.service;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.event.PedidoCreadoEvent;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.model.Notificacion;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.repository.NotificacionRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -39,16 +40,21 @@ public class NotificacionListener {
         this.emailSenderService = emailSenderService;
     }
 
-    // Entry point for every message on the topic. Contract:
-    //  - never throws (poison-pill tolerance: a broken message is logged and skipped)
-    //  - duplicate pedidoId is skipped silently (at-least-once redelivery is expected)
+    // Entry point for every message on the topic. Error policy (rubric:
+    // success / recoverable failure / definitive failure):
+    //  - duplicates are skipped by the idempotency guard (never thrown)
+    //  - definitive failures (unreadable payload, event without id) are
+    //    rethrown and the error handler isolates them in <topic>.DLT with no
+    //    retries: nothing is lost in silence
+    //  - transient failures (DB down, infra) are rethrown too: the error
+    //    handler retries with backoff and only then moves the message to the DLQ
     @KafkaListener(topics = "${app.kafka.topic:pedidos}", groupId = GRUPO_CONSUMIDOR)
     public void onPedidoCreado(String payload) {
         try {
             PedidoCreadoEvent evento = objectMapper.readValue(payload, PedidoCreadoEvent.class);
             if (evento == null || evento.id() == null) {
-                log.error("Skipping event without order id: {}", payload);
-                return;
+                log.error("Event without order id, isolating to the DLQ: {}", payload);
+                throw new IllegalArgumentException("event without order id");
             }
 
             // Idempotency guard: the same pedidoId must produce exactly one row
@@ -65,11 +71,19 @@ public class NotificacionListener {
         } catch (DataIntegrityViolationException e) {
             // Lost a race against a concurrent save of the same pedidoId
             log.debug("Duplicate event for order detected on save, skipped: {}", e.getMessage());
-        } catch (Exception e) {
-            // Poison pill: log honestly and continue so one bad message
-            // never blocks the consumer or retries forever
-            log.error("Could not process event, skipping. Payload: {} - Reason: {}",
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            // Definitive failure: unreadable or invalid event -> no retries, the
+            // error handler sends it straight to the DLQ for manual review
+            log.error("Definitively invalid message, isolating to the DLQ. Payload: {} - Reason: {}",
                     payload, e.getMessage());
+            throw new IllegalArgumentException("invalid PedidoCreado event", e);
+        } catch (Exception e) {
+            // Transient failure (DB down, infra): rethrown so the error handler
+            // retries it and, if it persists, isolates it in the DLQ. The old
+            // "log and skip" silently lost the order's confirmation email.
+            log.error("Recoverable failure processing event. Payload: {} - Reason: {}",
+                    payload, e.getMessage());
+            throw e instanceof RuntimeException ? (RuntimeException) e : new IllegalStateException(e);
         }
     }
 

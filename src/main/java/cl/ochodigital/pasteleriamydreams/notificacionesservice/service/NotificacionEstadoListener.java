@@ -3,6 +3,7 @@ package cl.ochodigital.pasteleriamydreams.notificacionesservice.service;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.event.PedidoEstadoCambiadoEvent;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.model.NotificacionEstado;
 import cl.ochodigital.pasteleriamydreams.notificacionesservice.repository.NotificacionEstadoRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -43,14 +44,20 @@ public class NotificacionEstadoListener {
         this.emailSenderService = emailSenderService;
     }
 
-    // Entry point for every message on the status topic
+    // Entry point for every message on the status topic. Error policy (rubric:
+    // success / recoverable failure / definitive failure):
+    //  - duplicates are skipped by the idempotency guard (never thrown)
+    //  - definitive failures (unreadable payload, event without id/state) are
+    //    rethrown and isolated in <topic>.DLT with no retries
+    //  - transient failures are rethrown so the error handler retries them
+    //    with backoff and only then moves them to the DLQ
     @KafkaListener(topics = "${app.kafka.topic.estados:pedidos-estados}", groupId = GRUPO_CONSUMIDOR)
     public void onPedidoEstadoCambiado(String payload) {
         try {
             PedidoEstadoCambiadoEvent evento = objectMapper.readValue(payload, PedidoEstadoCambiadoEvent.class);
             if (evento == null || evento.id() == null || evento.estadoNuevo() == null) {
-                log.error("Skipping status event without order id or state: {}", payload);
-                return;
+                log.error("Status event without order id or state, isolating to the DLQ: {}", payload);
+                throw new IllegalArgumentException("status event without order id or state");
             }
             // Only RECIBIDO -> EN_PREPARACION / DESPACHADO / ENTREGADO announce
             // themselves. A repeated or unknown state saves nothing and emails nothing.
@@ -75,11 +82,18 @@ public class NotificacionEstadoListener {
         } catch (DataIntegrityViolationException e) {
             // Lost a race against a concurrent save of the same (pedidoId, estadoPedido)
             log.debug("Duplicate status event detected on save, skipped: {}", e.getMessage());
-        } catch (Exception e) {
-            // Poison pill: log honestly and continue so one bad message never
-            // blocks the consumer or retries forever
-            log.error("Could not process status event, skipping. Payload: {} - Reason: {}",
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            // Definitive failure: unreadable or invalid event -> no retries, the
+            // error handler isolates it in the DLQ for manual review
+            log.error("Definitively invalid status message, isolating to the DLQ. Payload: {} - Reason: {}",
                     payload, e.getMessage());
+            throw new IllegalArgumentException("invalid PedidoEstadoCambiado event", e);
+        } catch (Exception e) {
+            // Transient failure (DB down, infra): rethrown so the error handler
+            // retries it and, if it persists, isolates it in the DLQ
+            log.error("Recoverable failure processing status event. Payload: {} - Reason: {}",
+                    payload, e.getMessage());
+            throw e instanceof RuntimeException ? (RuntimeException) e : new IllegalStateException(e);
         }
     }
 

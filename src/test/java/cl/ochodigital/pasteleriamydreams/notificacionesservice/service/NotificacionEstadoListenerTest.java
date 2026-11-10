@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -174,9 +175,12 @@ class NotificacionEstadoListenerTest {
     }
 
     @Test
-    void aPoisonPillNeverKillsTheConsumer() {
-        assertDoesNotThrow(() -> listener.onPedidoEstadoCambiado("this is not json {{{"));
-        assertDoesNotThrow(() -> listener.onPedidoEstadoCambiado(
+    void aPoisonPillIsRethrownToReachTheDlq() {
+        // Nueva política de errores: la píldora de veneno ya no se traga en
+        // silencio; se relanza para que el error handler la aísle en la DLQ.
+        // El consumidor sigue vivo para los mensajes siguientes.
+        assertThrows(IllegalArgumentException.class, () -> listener.onPedidoEstadoCambiado("this is not json {{{"));
+        assertThrows(IllegalArgumentException.class, () -> listener.onPedidoEstadoCambiado(
                 "{\"evento\":\"PedidoEstadoCambiado\",\"estadoNuevo\":\"ENTREGADO\"}"));
         verify(repository, never()).save(any(NotificacionEstado.class));
     }
