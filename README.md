@@ -265,7 +265,7 @@ docker compose up -d
 | Topic | `pedidos` (compartido con `pedidos-service`) |
 | Consumer group | `notificaciones` |
 | `auto-offset-reset` | `earliest` (seguro: el consumidor es idempotente) |
-| Broker | `localhost:9092` |
+| Broker | `localhost:19092` |
 
 ## ⚙️ Variables de entorno
 
@@ -277,7 +277,7 @@ La conexión a la base de datos se configura por variables de entorno, con defau
 | `DB_USER` | `root` |
 | `DB_PASS` | *(vacío)* |
 
-Otras propiedades relevantes (`src/main/resources/application.properties`): `server.port=8083`, `spring.kafka.bootstrap-servers=localhost:9092`, `app.kafka.topic=pedidos`, `spring.jpa.hibernate.ddl-auto=update` (crea la tabla `notificaciones` al arrancar).
+Otras propiedades relevantes (`src/main/resources/application.properties`): `server.port=8083`, `spring.kafka.bootstrap-servers=localhost:19092`, `app.kafka.topic=pedidos`, `spring.jpa.hibernate.ddl-auto=update` (crea la tabla `notificaciones` al arrancar).
 
 ## ▶️ Cómo correrlo local
 
