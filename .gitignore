@@ -50,3 +50,6 @@ credenciales-local.md
 # Logs locales del lanzador
 run.log
 run-err.log
+
+# Logs locales de cualquier herramienta (nunca se commitean)
+*.log
