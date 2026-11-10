@@ -284,7 +284,7 @@ Otras propiedades relevantes (`src/main/resources/application.properties`): `ser
 Los consumidores distinguen tres escenarios, como exige la rúbrica de mensajería:
 
 - **Éxito:** el evento se procesa una sola vez (guard de idempotencia; los duplicados se saltan y se registran en `debug`).
-- **Error recuperable** (base o SMTP caídos): el mensaje se **reintenta** con backoff fijo — `app.kafka.reintentos.max` (2 por defecto) intentos separados por `app.kafka.reintentos.espera-ms` (1000 ms por defecto) — y solo si persiste se aísla.
+- **Error recuperable** (base o infraestructura caídas): el mensaje se **reintenta** con backoff fijo — `app.kafka.reintentos.max` (2 por defecto) intentos separados por `app.kafka.reintentos.espera-ms` (1000 ms por defecto) — y solo si persiste se aísla.
 - **Error definitivo** (payload ilegible, evento sin id): **sin reintentos**, va directo a la DLQ.
 
 Todo mensaje fallido termina en el topic **`pedidos.DLT` / `pedidos-estados.DLT`** con el payload original y el motivo de la falla en los headers, para revisión y reproceso manual. Cada reintento y cada aislamiento quedan en el log (`KafkaConfig`). Nada se pierde en silencio. El envío de correo, cuando falla, se registra en la fila con estado `ERROR` (estado de negocio) sin bloquear la cola.
