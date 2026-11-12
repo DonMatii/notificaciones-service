@@ -130,6 +130,10 @@ inyección de cabeceras o HTML.
 
 `NotificacionEstadoListener` escucha el topic **`pedidos-estados`** con el consumer group **`notificaciones-estados`** y persiste una fila `NotificacionEstado` por **(pedido, estado)** — la idempotencia es la pareja, no solo el `pedidoId`, porque un mismo pedido camina hasta tres estados y debe generar tres correos.
 
+### Solicitud de pedido (Versión 1)
+
+`SolicitudListener` escucha el topic **`solicitudes`** con el consumer group **`notificaciones-solicitudes`** y envía el correo **"Pastelería My Dreams - Recibimos tu solicitud"** al correo del cliente (saludo por nombre, detalle, mensaje si viene, cierre cálido) con **plantilla propia** `mail/solicitud-recibida.html`: misma marca que el resto, pero sin los textos fijos del template de pedidos (una solicitud no está "en preparación" ni se "despacha"). La idempotencia es por `solicitudId` (tabla `notificaciones_solicitud`, espejo del patrón de `NotificacionEstado`) y el envío reutiliza el transporte compartido `transportar` de `EmailSenderService`.
+
 Los estados que avisan al cliente son `EN_PREPARACION`, `DESPACHADO` y `ENTREGADO`. Cada uno usa la plantilla `mail/pedido-estado.html` con el estado como titular, y el correo se envía por SMTP cuando `MAIL_HOST` está configurado (si no, la fila queda en `PENDIENTE`). El estado inicial `RECIBIDO` ya fue confirmado con el correo de recepción del pedido, por lo que no se vuelve a notificar.
 
 ## 📧 Estado honesto de RF-09: el correo se envía por SMTP si está configurado

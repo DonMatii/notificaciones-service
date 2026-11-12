@@ -292,6 +292,55 @@ class EmailSenderMarcaTest {
         return proveedor;
     }
 
+    // --- Solicitud de pedido (Versión 1) -----------------------------------
+
+    // El correo de la solicitud habla de SOLICITUD, no de pedido en preparación:
+    // sin los textos fijos del template de pedidos y con un solo saludo
+    @Test
+    void elCorreoDeSolicitudHablaDeSolicitudYNoDePedido() throws Exception {
+        assertTrue(service().enviarSolicitud(notificacionSolicitud()));
+        // El transporte real llama saveChanges() antes de entregar; sin esto la
+        // estructura multipart del mensaje aún no está materializada
+        mensaje.saveChanges();
+
+        String html = html();
+        assertTrue(html.contains("Hola, Daniela Soto!"),
+                "El saludo con nombre debe ir como título: " + html);
+        assertTrue(html.contains("Recibimos tu solicitud"),
+                "El correo debe hablar de solicitud: " + html);
+        assertTrue(html.contains("Torta de chocolate x1"),
+                "El resumen debe traer la solicitud en tabla: " + html);
+        assertTrue(html.contains("Ver nuestras delicias"),
+                "El correo debe invitar a seguir explorando el catálogo: " + html);
+        assertTrue(!html.contains("estamos preparando"),
+                "El correo no debe decir que el pedido se está preparando: " + html);
+        assertTrue(!html.contains("despachado"),
+                "El correo no debe prometer despacho: " + html);
+        int saludos = html.split("Hola", -1).length - 1;
+        assertTrue(saludos == 1, "El correo debe saludar exactamente una vez: " + html);
+    }
+
+    // Cuerpo tal como lo arma SolicitudListener (saludo + detalle + cierre corto;
+    // la firma la pone el pie de la plantilla)
+    private Notificacion notificacionSolicitud() {
+        Notificacion n = new Notificacion();
+        n.setPedidoId(601L);
+        n.setCliente("Daniela Soto");
+        n.setEmail("daniela@ejemplo.cl");
+        n.setAsunto("Pastelería My Dreams - Recibimos tu solicitud");
+        n.setCuerpo("""
+                Hola Daniela Soto,
+
+                Recibimos tu solicitud de pedido en Pastelería My Dreams.
+
+                Tu solicitud: Torta de chocolate x1
+
+                Te contactaremos pronto para coordinar tu pedido.
+
+                Gracias por confiar en Pastelería My Dreams.""");
+        return n;
+    }
+
     private EmailSenderService service() {
         return new EmailSenderService(mailSenderProvider, "smtp.example.test",
                 "no-reply@ejemplo.cl", "", "Pastelería My Dreams", SITIO_PRUEBA);

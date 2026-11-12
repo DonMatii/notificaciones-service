@@ -39,6 +39,7 @@ public class EmailSenderService {
 
     // Template and inline logo, both on the classpath (src/main/resources/mail)
     private static final String PLANTILLA = "mail/pedido-recibido.html";
+    private static final String PLANTILLA_SOLICITUD = "mail/solicitud-recibida.html";
     // Template for the status-change emails (S4): same shell and same inline logo,
     // but the headline is the new state instead of the order summary
     private static final String PLANTILLA_ESTADO = "mail/pedido-estado.html";
@@ -54,6 +55,9 @@ public class EmailSenderService {
     // Label written by NotificacionEstadoListener#armarCuerpo for the status emails
     private static final String ETIQUETA_TOTAL_ESTADO = "Total del pedido: ";
     private static final String ETIQUETA_DESCUENTO = "Descuento aplicado: ";
+    private static final String ETIQUETA_SOLICITUD = "Tu solicitud: ";
+    private static final String ETIQUETA_MENSAJE = "Tu mensaje: ";
+    private static final String RUTA_DELICIAS = "/delicias";
 
     // Resolved lazily: the JavaMailSender bean does not exist when spring.mail.host
     // is absent from the environment (e.g. the hermetic test classpath), and eager
@@ -109,22 +113,9 @@ public class EmailSenderService {
         }
 
         try {
-            JavaMailSender mailSender = mailSenderProvider.getObject();
-            MimeMessage mensaje = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mensaje,
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
-            // Display name + address in UTF-8: Gmail shows the brand, not "yo" (A4)
-            helper.setFrom(new InternetAddress(remitente, nombreMarca(), StandardCharsets.UTF_8.name()));
-            helper.setTo(notificacion.getEmail().trim());
-            helper.setSubject(notificacion.getAsunto());
-            // text/plain fallback + branded HTML inside a multipart/alternative;
-            // the inline logo travels as a sibling within the related part
-            helper.setText(textoPlano(notificacion), construirHtml(notificacion));
-            helper.addInline(CID_LOGO, new ClassPathResource(LOGO));
-            mailSender.send(mensaje);
-            log.info("Email sent for order {} to {}", notificacion.getPedidoId(),
-                    notificacion.getEmail());
-            return true;
+            return transportar(remitente, notificacion.getEmail().trim(), notificacion.getAsunto(),
+                    textoPlano(notificacion), construirHtml(notificacion),
+                    "Email sent for order {} to {}", notificacion.getPedidoId(), notificacion.getEmail());
         } catch (Exception e) {
             log.error("Could not send email for order {}: {}",
                     notificacion.getPedidoId(), e.getMessage());
@@ -158,24 +149,124 @@ public class EmailSenderService {
         }
 
         try {
-            JavaMailSender mailSender = mailSenderProvider.getObject();
-            MimeMessage mensaje = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mensaje,
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
-            helper.setFrom(new InternetAddress(remitente, nombreMarca(), StandardCharsets.UTF_8.name()));
-            helper.setTo(notificacion.getEmail().trim());
-            helper.setSubject(notificacion.getAsunto());
-            helper.setText(textoPlano(notificacion), construirHtml(notificacion));
-            helper.addInline(CID_LOGO, new ClassPathResource(LOGO));
-            mailSender.send(mensaje);
-            log.info("Status email sent for order {} ({}) to {}", notificacion.getPedidoId(),
+            return transportar(remitente, notificacion.getEmail().trim(), notificacion.getAsunto(),
+                    textoPlano(notificacion), construirHtml(notificacion),
+                    "Status email sent for order {} ({}) to {}", notificacion.getPedidoId(),
                     notificacion.getEstadoPedido(), notificacion.getEmail());
-            return true;
         } catch (Exception e) {
             log.error("Could not send status email for order {}: {}",
                     notificacion.getPedidoId(), e.getMessage());
             return false;
         }
+    }
+
+    // Único transporte multipart (text/plain + HTML con logo inline) que comparten
+    // los tres correos: solo cambian el texto plano, el HTML y las etiquetas del
+    // log. Devuelve true solo ante un envío confirmado y jamás lanza.
+    private boolean transportar(String remitente, String destinatario, String asunto,
+            String textoPlano, String html, String logOk, Object... argsLog) throws Exception {
+        JavaMailSender mailSender = mailSenderProvider.getObject();
+        MimeMessage mensaje = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mensaje,
+                MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+        // Nombre a mostrar y dirección en UTF-8: Gmail muestra la marca, no "yo" (A4)
+        helper.setFrom(new InternetAddress(remitente, nombreMarca(), StandardCharsets.UTF_8.name()));
+        helper.setTo(destinatario);
+        helper.setSubject(asunto);
+        // Respaldo text/plain + HTML con marca dentro de un multipart/alternative;
+        // el logo inline viaja como hermano dentro de la parte related
+        helper.setText(textoPlano, html);
+        helper.addInline(CID_LOGO, new ClassPathResource(LOGO));
+        mailSender.send(mensaje);
+        log.info(logOk, argsLog);
+        return true;
+    }
+
+    // --- Solicitud de pedido (Versión 1) -------------------------------------
+
+    // Correo de la solicitud: mismo transporte y mismo contrato que
+    // enviar(Notificacion) (habilitado solo por spring.mail.host, destinatarios
+    // reales, nunca lanza), pero con su propia plantilla: los textos fijos
+    // hablan de una SOLICITUD, no de un pedido en preparación.
+    public boolean enviarSolicitud(Notificacion notificacion) {
+        if (!habilitado()) {
+            log.info("SMTP not configured (spring.mail.host is blank), solicitud email not sent for {}",
+                    notificacion != null ? notificacion.getPedidoId() : null);
+            return false;
+        }
+        if (notificacion == null || !hasRealRecipient(notificacion.getEmail())) {
+            log.info("Skipping solicitud email for {}: no real recipient ({})",
+                    notificacion != null ? notificacion.getPedidoId() : null,
+                    notificacion != null ? notificacion.getEmail() : null);
+            return false;
+        }
+        String remitente = resolveFrom();
+        if (remitente == null || remitente.isBlank()) {
+            log.error("Cannot send solicitud email for {}: neither app.mail.from nor "
+                    + "spring.mail.username is configured", notificacion.getPedidoId());
+            return false;
+        }
+        try {
+            return transportar(remitente, notificacion.getEmail().trim(), notificacion.getAsunto(),
+                    textoPlanoSolicitud(notificacion), construirHtmlSolicitud(notificacion),
+                    "Solicitud email sent for {} to {}",
+                    notificacion.getPedidoId(), notificacion.getEmail());
+        } catch (Exception e) {
+            log.error("Could not send solicitud email for {}: {}",
+                    notificacion.getPedidoId(), e.getMessage());
+            return false;
+        }
+    }
+
+    // Texto plano de la solicitud: el cuerpo completo tal como lo armó el listener
+    // (saludo por nombre, detalle, mensaje opcional y cierre cercano)
+    private String textoPlanoSolicitud(Notificacion notificacion) {
+        return notificacion.getCuerpo() != null ? notificacion.getCuerpo() : "";
+    }
+
+    // Plantilla de solicitud: saludo con nombre, resumen en tabla etiqueta/valor
+    // (mismo lenguaje visual que el correo de pedido) e invitación al catálogo.
+    // Sin textos de pedido: el correo habla de una SOLICITUD.
+    private String construirHtmlSolicitud(Notificacion notificacion) throws Exception {
+        String plantilla;
+        try (var entrada = new ClassPathResource(PLANTILLA_SOLICITUD).getInputStream()) {
+            plantilla = new String(entrada.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        String cliente = notificacion.getCliente();
+        return plantilla
+                .replace("{{marca}}", escapar(nombreMarca()))
+                .replace("{{cliente}}", escapar(cliente == null || cliente.isBlank() ? "cliente" : cliente))
+                .replace("{{resumen}}", tablaSolicitud(notificacion.getCuerpo()))
+                .replace("{{cta}}", bloqueCtaSolicitud());
+    }
+
+    // Tabla etiqueta/valor con lo que el cliente pidió, parseada del cuerpo con
+    // el mismo mecanismo de etiquetas fijas que ya usa el resumen del pedido
+    private String tablaSolicitud(String cuerpo) {
+        StringBuilder tabla = new StringBuilder(
+                "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+                        + "style=\"border-collapse:collapse;\">");
+        String detalle = extraerEtiqueta(cuerpo, ETIQUETA_SOLICITUD);
+        filaResumen(tabla, "Solicitud", detalle != null ? detalle : "—");
+        String mensaje = extraerEtiqueta(cuerpo, ETIQUETA_MENSAJE);
+        if (mensaje != null) {
+            filaResumen(tabla, "Mensaje", mensaje);
+        }
+        return tabla.append("</table>").toString();
+    }
+
+    // Botón rosa hacia el catálogo: mismo lenguaje visual que el bloque de
+    // seguimiento del correo de pedido
+    private String bloqueCtaSolicitud() {
+        String url = escapar(urlDelicias());
+        return "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:28px;\">"
+                + "<tr><td align=\"center\">"
+                + "<a href=\"" + url + "\" style=\"background:#e75480;color:#ffffff;text-decoration:none;"
+                + "padding:14px 32px;border-radius:8px;font-size:16px;font-weight:bold;display:inline-block;\">"
+                + "Ver nuestras delicias</a>"
+                + "<p style=\"margin:14px 0 0;font-size:13px;color:#8a6d7b;\">También puedes explorar todo el "
+                + "catálogo en <a href=\"" + url + "\" style=\"color:#e75480;\">" + url + "</a></p>"
+                + "</td></tr></table>";
     }
 
     // Plain-text fallback for the status email: the persisted body plus the
@@ -390,13 +481,23 @@ public class EmailSenderService {
                 .replace("{{url}}", url);
     }
 
-    // Plain /estado URL of the public site, trailing slashes removed
+    // URL pública /estado del sitio, sin barras finales
     private String urlEstado() {
+        return sitioBase() + RUTA_ESTADO;
+    }
+
+    // URL pública del catálogo del sitio
+    private String urlDelicias() {
+        return sitioBase() + RUTA_DELICIAS;
+    }
+
+    // URL base del sitio, sin barras finales
+    private String sitioBase() {
         String sitio = (siteUrl == null || siteUrl.isBlank()) ? SITIO_POR_DEFECTO : siteUrl.trim();
         while (sitio.endsWith("/")) {
             sitio = sitio.substring(0, sitio.length() - 1);
         }
-        return sitio + RUTA_ESTADO;
+        return sitio;
     }
 
     // Brand display name for From header and signature
