@@ -21,10 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// RF-09 branded email: one multipart/alternative message with the HTML part
-// (inline logo via cid:) plus the text/plain fallback, and a From header that
-// shows the brand instead of a bare address. The sender contract is unchanged:
-// returns true only on a confirmed send and never throws.
+// Correo de marca RF-09: un mensaje multipart/alternative con la parte HTML
+// (logo inline vía cid:) más el respaldo text/plain, y un header From que
+// muestra la marca en vez de una dirección desnuda. El contrato del emisor no
+// cambia: devuelve true solo ante un envío confirmado y nunca lanza excepciones.
 class EmailSenderMarcaTest {
 
     private static final String CODIGO_SEGUIMIENTO = "9f8e7d6c5b4a39281706f5e4d3c2b1a0";
@@ -39,8 +39,8 @@ class EmailSenderMarcaTest {
     void setUp() throws Exception {
         mailSender = mockSender();
         mailSenderProvider = provider();
-        // mail.host: saveChanges() derives the Message-ID host from it; without
-        // it JavaMail falls back to InetAddress.getLocalHost() (~9.5s DNS wait)
+        // mail.host: saveChanges() deriva de ahí el host del Message-ID; sin él
+        // JavaMail cae a InetAddress.getLocalHost() (~9,5 s de espera DNS)
         Properties props = new Properties();
         props.setProperty("mail.host", "localhost");
         mensaje = new MimeMessage(jakarta.mail.Session.getInstance(props));
@@ -59,7 +59,7 @@ class EmailSenderMarcaTest {
         List<Multipart> multiparts = new ArrayList<>();
         recolectar(mensaje, partes, multiparts);
 
-        // (a) a multipart/alternative carrying BOTH text/plain and text/html
+        // (a) un multipart/alternative que lleva text/plain Y text/html
         boolean hayAlternative = multiparts.stream().anyMatch(mp ->
                 mp.getContentType() != null
                         && mp.getContentType().toLowerCase().contains("alternative")
@@ -69,11 +69,11 @@ class EmailSenderMarcaTest {
                 "The message must contain a multipart/alternative with text/plain and text/html parts;"
                         + " structure:" + descripcion());
 
-        // (b) the HTML references the logo by cid:
+        // (b) el HTML referencia el logo por cid:
         assertTrue(html().contains("cid:logo"),
                 "The HTML part must reference the inline logo by cid:");
 
-        // (c) the logo travels inline with a Content-ID header
+        // (c) el logo viaja inline con un header Content-ID
         assertTrue(partes.stream().anyMatch(this::tieneContentIdLogo),
                 "The logo must travel as an inline part with Content-ID");
     }
@@ -105,7 +105,7 @@ class EmailSenderMarcaTest {
         assertTrue(html.contains(SITIO_PRUEBA + "/estado"),
                 "The HTML must link to the plain /estado route of the public site");
 
-        // The text/plain fallback keeps the persisted body and adds the code too
+        // El respaldo text/plain conserva el cuerpo persistido y agrega el código también
         String texto = textoPlano();
         assertTrue(texto.contains("Hola Daniela"), "The plain part must keep the fallback body");
         assertTrue(texto.contains(CODIGO_SEGUIMIENTO),
@@ -175,20 +175,20 @@ class EmailSenderMarcaTest {
                 "No summary table rows may be rendered without labels");
     }
 
-    // --- helpers -----------------------------------------------------------
+    // --- auxiliares --------------------------------------------------------
 
-    // Runs the sender and then materializes the MIME headers exactly like the
-    // real transport does: JavaMailSenderImpl.doSend calls saveChanges() before
-    // Transport.sendMessage, and the mocked send() skips that step. Without it
-    // the nested parts keep no Content-Type header (setContent(Multipart) only
-    // installs the DataHandler) and structural assertions see only defaults.
+    // Ejecuta el emisor y luego materializa los headers MIME exactamente como lo
+    // hace el transporte real: JavaMailSenderImpl.doSend llama saveChanges() antes
+    // de Transport.sendMessage, y el send() mockeado se salta ese paso. Sin él,
+    // las partes anidadas no conservan header Content-Type (setContent(Multipart)
+    // solo instala el DataHandler) y las aserciones estructurales ven solo defaults.
     private boolean enviar(Notificacion notificacion) throws Exception {
         boolean enviado = service().enviar(notificacion);
         mensaje.saveChanges();
         return enviado;
     }
 
-    // Walks the MIME tree collecting every part and multipart container
+    // Recorre el árbol MIME recolectando cada parte y cada contenedor multipart
     private void recolectar(Part parte, List<Part> partes, List<Multipart> multiparts) throws Exception {
         partes.add(parte);
         Object contenido = parte.getContent();
@@ -200,8 +200,8 @@ class EmailSenderMarcaTest {
         }
     }
 
-    // True when the multipart has a body part of the given MIME type.
-    // Never throws so it can be used inside stream predicates.
+    // True cuando el multipart tiene una parte de cuerpo del MIME type indicado.
+    // Nunca lanza excepciones para poder usarse dentro de predicados de stream.
     private boolean tieneTipo(Multipart mp, String mimeType) {
         try {
             for (int i = 0; i < mp.getCount(); i++) {
@@ -215,8 +215,8 @@ class EmailSenderMarcaTest {
         return false;
     }
 
-    // True when the part carries a Content-ID referencing the inline logo.
-    // Never throws so it can be used inside stream predicates.
+    // True cuando la parte trae un Content-ID que referencia el logo inline.
+    // Nunca lanza excepciones para poder usarse dentro de predicados de stream.
     private boolean tieneContentIdLogo(Part parte) {
         try {
             String[] cid = parte.getHeader("Content-ID");
@@ -226,9 +226,9 @@ class EmailSenderMarcaTest {
         }
     }
 
-    // Indented Content-Type dump of the whole MIME tree plus the message
-    // headers, used in assertion messages so a structural regression is
-    // readable at a glance
+    // Volcado indentado del Content-Type de todo el árbol MIME más los headers
+    // del mensaje, usado en los mensajes de aserción para que una regresión
+    // estructural se lea de un vistazo
     private String descripcion() throws Exception {
         StringBuilder sb = new StringBuilder("\n  MSG-HEADERS:");
         java.util.Enumeration<jakarta.mail.Header> cabeceras = mensaje.getAllHeaders();
@@ -253,19 +253,19 @@ class EmailSenderMarcaTest {
         }
     }
 
-    // First text/html part of the message
+    // Primera parte text/html del mensaje
     private String html() throws Exception {
         return primerContenido("text/html");
     }
 
-    // First text/plain part of the message
+    // Primera parte text/plain del mensaje
     private String textoPlano() throws Exception {
         return primerContenido("text/plain");
     }
 
-    // Content of the first part matching the given MIME type (loop instead of
-    // a stream: Part#isMimeType and Part#getContent throw a checked exception
-    // that lambdas may not propagate)
+    // Contenido de la primera parte que coincide con el MIME type indicado (loop
+    // en vez de stream: Part#isMimeType y Part#getContent lanzan una checked
+    // exception que los lambdas no pueden propagar)
     private String primerContenido(String mimeType) throws Exception {
         List<Part> partes = new ArrayList<>();
         recolectar(mensaje, partes, new ArrayList<>());
@@ -346,8 +346,8 @@ class EmailSenderMarcaTest {
                 "no-reply@ejemplo.cl", "", "Pastelería My Dreams", SITIO_PRUEBA);
     }
 
-    // Mirrors the row the listener persists: branded subject, plain-text body
-    // with the fixed labels, opaque tracking code on the entity
+    // Replica la fila que persiste el listener: asunto con la marca, cuerpo en
+    // texto plano con las etiquetas fijas, código de seguimiento opaco en la entidad
     private Notificacion notificacion() {
         Notificacion n = new Notificacion();
         n.setPedidoId(501L);

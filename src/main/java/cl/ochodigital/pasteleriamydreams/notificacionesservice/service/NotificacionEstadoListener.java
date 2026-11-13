@@ -14,22 +14,23 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-// Consumes PedidoEstadoCambiado events from the topic `pedidos-estados` and
-// persists ONE notification per (order, state) (S3). When SMTP is configured
-// (MAIL_HOST set) the status email is sent right after the save and the row
-// moves to ENVIADO / ERROR; without SMTP the row stays PENDIENTE.
+// Consume eventos PedidoEstadoCambiado del topic `pedidos-estados` y persiste
+// UNA notificación por (pedido, estado) (S3). Cuando SMTP está configurado
+// (MAIL_HOST definido) el correo de estado se envía justo después del guardado
+// y la fila pasa a ENVIADO / ERROR; sin SMTP la fila queda PENDIENTE.
 //
-// Same listener contract as NotificacionListener: never throws, tolerates
-// poison pills, and skips duplicates. The one deliberate difference is the
-// idempotency key: here it is the PAIR (pedidoId, estadoPedido), because a
-// single order walks up to three states and must produce three emails.
+// Mismo contrato de listener que NotificacionListener: nunca revienta, tolera
+// píldoras de veneno y salta duplicados. La única diferencia deliberada es la
+// clave de idempotencia: acá es el PAR (pedidoId, estadoPedido), porque un
+// mismo pedido recorre hasta tres estados y debe producir tres correos.
 @Service
 public class NotificacionEstadoListener {
 
     private static final Logger log = LoggerFactory.getLogger(NotificacionEstadoListener.class);
 
-    // Separate consumer group from the order-confirmation listener: the two
-    // consume different topics, and keeping them apart makes offsets independent
+    // Grupo de consumidores separado del listener de confirmación de pedidos:
+    // los dos consumen topics distintos y mantenerlos aparte hace que los
+    // offsets sean independientes
     private static final String GRUPO_CONSUMIDOR = "notificaciones-estados";
 
     private final NotificacionEstadoRepository repository;
@@ -44,13 +45,13 @@ public class NotificacionEstadoListener {
         this.emailSenderService = emailSenderService;
     }
 
-    // Entry point for every message on the status topic. Error policy (rubric:
-    // success / recoverable failure / definitive failure):
-    //  - duplicates are skipped by the idempotency guard (never thrown)
-    //  - definitive failures (unreadable payload, event without id/state) are
-    //    rethrown and isolated in <topic>.DLT with no retries
-    //  - transient failures are rethrown so the error handler retries them
-    //    with backoff and only then moves them to the DLQ
+    // Punto de entrada de cada mensaje del topic de estados. Política de errores
+    // (rúbrica: éxito / falla recuperable / falla definitiva):
+    //  - los duplicados los salta el control de idempotencia (nunca se lanzan)
+    //  - las fallas definitivas (payload ilegible, evento sin id/estado) se
+    //    relanzan y se aíslan en <topic>.DLT sin reintentos
+    //  - las fallas transitorias se relanzan para que el manejador de errores
+    //    las reintente con backoff y solo entonces las mueva a la DLQ
     @KafkaListener(topics = "${app.kafka.topic.estados:pedidos-estados}", groupId = GRUPO_CONSUMIDOR)
     public void onPedidoEstadoCambiado(String payload) {
         try {
@@ -59,15 +60,15 @@ public class NotificacionEstadoListener {
                 log.error("Status event without order id or state, isolating to the DLQ: {}", payload);
                 throw new IllegalArgumentException("status event without order id or state");
             }
-            // Only RECIBIDO -> EN_PREPARACION / DESPACHADO / ENTREGADO announce
-            // themselves. A repeated or unknown state saves nothing and emails nothing.
+            // Solo RECIBIDO -> EN_PREPARACION / DESPACHADO / ENTREGADO se
+            // anuncian. Un estado repetido o desconocido no guarda nada y no manda nada.
             if (!EstadosPedido.enviaCorreo(evento.estadoNuevo())) {
                 log.debug("State {} does not send an email, skipped (order {})",
                         evento.estadoNuevo(), evento.id());
                 return;
             }
 
-            // Idempotency guard: the PAIR, not the order id alone (S3)
+            // Control de idempotencia: el PAR, no solo el id del pedido (S3)
             if (repository.existsByPedidoIdAndEstadoPedido(evento.id(), evento.estadoNuevo())) {
                 log.debug("Duplicate status event for order {} in state {} skipped",
                         evento.id(), evento.estadoNuevo());
@@ -80,25 +81,26 @@ public class NotificacionEstadoListener {
                     evento.id(), evento.estadoNuevo());
             aplicarEnvioCorreo(notificacion);
         } catch (DataIntegrityViolationException e) {
-            // Lost a race against a concurrent save of the same (pedidoId, estadoPedido)
+            // Se perdió una carrera contra un guardado concurrente del mismo (pedidoId, estadoPedido)
             log.debug("Duplicate status event detected on save, skipped: {}", e.getMessage());
         } catch (JsonProcessingException | IllegalArgumentException e) {
-            // Definitive failure: unreadable or invalid event -> no retries, the
-            // error handler isolates it in the DLQ for manual review
+            // Falla definitiva: evento ilegible o inválido -> sin reintentos, el
+            // manejador de errores lo aísla en la DLQ para revisión manual
             log.error("Definitively invalid status message, isolating to the DLQ. Payload: {} - Reason: {}",
                     payload, e.getMessage());
             throw new IllegalArgumentException("invalid PedidoEstadoCambiado event", e);
         } catch (Exception e) {
-            // Transient failure (DB down, infra): rethrown so the error handler
-            // retries it and, if it persists, isolates it in the DLQ
+            // Falla transitoria (base caída, infraestructura): se relanza para que
+            // el manejador de errores la reintente y, si persiste, la aísle en la DLQ
             log.error("Recoverable failure processing status event. Payload: {} - Reason: {}",
                     payload, e.getMessage());
             throw e instanceof RuntimeException ? (RuntimeException) e : new IllegalStateException(e);
         }
     }
 
-    // Same hook as NotificacionListener: hand the row to the SMTP sender when one
-    // is configured. EmailSenderService never throws, so this cannot break either.
+    // Mismo hook que NotificacionListener: entrega la fila al emisor SMTP cuando
+    // hay uno configurado. EmailSenderService nunca lanza excepciones, así que
+    // esto tampoco puede romper nada.
     private void aplicarEnvioCorreo(NotificacionEstado notificacion) {
         if (!emailSenderService.habilitado()) {
             log.info("SMTP not configured, status notification stays PENDIENTE (order {}, {})",
@@ -115,7 +117,7 @@ public class NotificacionEstadoListener {
         }
     }
 
-    // Builds the notification row from the event data plus the opaque tracking code
+    // Construye la fila de notificación con los datos del evento más el código de seguimiento opaco
     private NotificacionEstado construir(PedidoEstadoCambiadoEvent evento, String codigoSeguimiento) {
         NotificacionEstado notificacion = new NotificacionEstado();
         notificacion.setPedidoId(evento.id());
@@ -140,9 +142,9 @@ public class NotificacionEstadoListener {
         return notificacion;
     }
 
-    // Plain-text fallback body. The HTML template takes the badge and the
-    // sentence straight from the state code, so this only has to read well on
-    // its own for mail clients without HTML.
+    // Cuerpo de respaldo en texto plano. La plantilla HTML toma el badge y la
+    // frase directamente del código de estado, así que esto solo tiene que leerse
+    // bien por sí solo en los clientes de correo sin HTML.
     private String armarCuerpo(PedidoEstadoCambiadoEvent evento) {
         String cliente = valorPorDefecto(evento.cliente(), "cliente");
         String desde = EstadosPedido.etiqueta(evento.estadoAnterior());
@@ -157,11 +159,11 @@ public class NotificacionEstadoListener {
                 cliente, desde, hasta, hasta,
                 EstadosPedido.mensaje(evento.estadoNuevo())));
 
-        // The status mail lists the product prices next to the order total, so a
-        // discount has to be spelled out: without this line the customer reads
-        // prices that do not add up to the total. The amount is derived from the
-        // event itself (the products carry their subtotals and the event carries
-        // the final total), so the Kafka contract does not have to change.
+        // El correo de estado lista los precios de los productos junto al total
+        // del pedido, así que un descuento debe explicitarse: sin esta línea el
+        // cliente lee precios que no suman el total. El monto se deriva del
+        // propio evento (los productos traen sus subtotales y el evento trae el
+        // total final), así que el contrato de Kafka no tiene que cambiar.
         Integer descuento = calcularDescuento(evento);
         if (descuento != null) {
             cuerpo.append(String.format("Descuento aplicado: -%s%n",
@@ -171,9 +173,9 @@ public class NotificacionEstadoListener {
         return cuerpo.append(String.format("Total del pedido: %s%n", total)).toString();
     }
 
-    // What the customer was discounted: the sum of the product subtotals minus
-    // the order total. Null when there is nothing to discount (no products, no
-    // total, or the total already matches the products).
+    // Lo que se le descontó al cliente: la suma de los subtotales de los
+    // productos menos el total del pedido. Null cuando no hay nada que descontar
+    // (sin productos, sin total, o el total ya coincide con los productos).
     private Integer calcularDescuento(PedidoEstadoCambiadoEvent evento) {
         if (evento.total() == null || evento.productos() == null || evento.productos().isEmpty()) {
             return null;
@@ -186,8 +188,8 @@ public class NotificacionEstadoListener {
         return descuento > 0 ? descuento : null;
     }
 
-    // codigoConsulta rides along in the payload but the mirror record does not
-    // model it, so it is read defensively from the raw JSON. Never throws.
+    // codigoConsulta viaja en el payload pero el record espejo no lo modela, así
+    // que se lee de forma defensiva desde el JSON crudo. Nunca lanza excepciones.
     private String extraerCodigoSeguimiento(String payload) {
         try {
             JsonNode nodo = objectMapper.readTree(payload);
@@ -203,7 +205,7 @@ public class NotificacionEstadoListener {
         }
     }
 
-    // Null/blank-safe helper so a partial event never crashes the listener
+    // Auxiliar a prueba de null/vacíos para que un evento parcial nunca reviente el listener
     private String valorPorDefecto(String valor, String porDefecto) {
         return (valor == null || valor.isBlank()) ? porDefecto : valor;
     }

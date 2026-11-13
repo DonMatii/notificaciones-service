@@ -19,24 +19,25 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// Verifies S3/S4: the status-change consumer stores one row per (pedido, estado)
-// and hands it to the SMTP sender. The idempotency key is the PAIR, not pedidoId
-// alone: one order walks up to three states and must produce three emails.
+// Verifica S3/S4: el consumidor de cambios de estado guarda una fila por
+// (pedido, estado) y se la entrega al emisor SMTP. La clave de idempotencia es
+// el PAR, no solo pedidoId: un mismo pedido recorre hasta tres estados y debe
+// producir tres correos.
 class NotificacionEstadoListenerTest {
 
-    // Exact JSON contract published by pedidos-service (record PedidoEstadoCambiadoEvent)
+    // Contrato JSON exacto publicado por pedidos-service (record PedidoEstadoCambiadoEvent)
     private static final String EVENTO_PREPARACION = """
             {"evento":"PedidoEstadoCambiado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"RECIBIDO","estadoNuevo":"EN_PREPARACION","total":25990,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[]}""";
 
     private static final String EVENTO_DESPACHADO = """
             {"evento":"PedidoEstadoCambiado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"EN_PREPARACION","estadoNuevo":"DESPACHADO","total":25990,"fecha":"2026-10-01T13:00:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[]}""";
 
-    // The products add up to $21.000 but the order total is $18.900: the
-    // difference is the discount the customer was granted.
+    // Los productos suman $21.000 pero el total del pedido es $18.900: la
+    // diferencia es el descuento que se le concedió al cliente.
     private static final String EVENTO_CON_DESCUENTO = """
             {"evento":"PedidoEstadoCambiado","id":302,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"RECIBIDO","estadoNuevo":"EN_PREPARACION","total":18900,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[{"nombre":"Tarta de Yogurt","cantidad":1,"precioUnitario":11000,"subtotal":11000},{"nombre":"Queque Vainilla","cantidad":2,"precioUnitario":5000,"subtotal":10000}]}""";
 
-    // Same products, but the total already matches them: there is no discount.
+    // Mismos productos, pero el total ya coincide con ellos: no hay descuento.
     private static final String EVENTO_SIN_DESCUENTO = """
             {"evento":"PedidoEstadoCambiado","id":303,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","estadoAnterior":"RECIBIDO","estadoNuevo":"EN_PREPARACION","total":21000,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9","productos":[{"nombre":"Tarta de Yogurt","cantidad":1,"precioUnitario":11000,"subtotal":11000},{"nombre":"Queque Vainilla","cantidad":2,"precioUnitario":5000,"subtotal":10000}]}""";
 
@@ -69,8 +70,8 @@ class NotificacionEstadoListenerTest {
         assertEquals("0a1b2c3d4e5f60718293a4b5c6d7e8f9", guardada.getCodigoSeguimiento());
     }
 
-    // Same rule as the order-confirmation mail: the customer must read the
-    // amount with the Chilean thousands separator ("$25.990").
+    // Misma regla que el correo de confirmación del pedido: el cliente debe leer
+    // el monto con el separador de miles chileno ("$25.990").
     @Test
     void elTotalDelCorreoDeEstadoSeGuardaConSeparadorDeMiles() {
         when(emailSenderService.habilitado()).thenReturn(false);
@@ -83,8 +84,9 @@ class NotificacionEstadoListenerTest {
                 "The status mail total must use the Chilean thousands separator");
     }
 
-    // The status mail lists the product prices AND the order total, so the
-    // customer sees a total that does not add up unless the discount is shown.
+    // El correo de estado lista los precios de los productos Y el total del
+    // pedido, así que el cliente ve un total que no cierra salvo que se muestre
+    // el descuento.
     @Test
     void elDescuentoSeGuardaEnElCuerpoDelCorreoDeEstado() {
         when(emailSenderService.habilitado()).thenReturn(false);
@@ -127,7 +129,7 @@ class NotificacionEstadoListenerTest {
 
     @Test
     void theSameOrderInANewStateIsANewRowNotADuplicate() {
-        // The pair guard must NOT block a later state of the same order
+        // El guardado por par NO debe bloquear un estado posterior del mismo pedido
         when(repository.existsByPedidoIdAndEstadoPedido(301L, "EN_PREPARACION")).thenReturn(false);
         when(repository.existsByPedidoIdAndEstadoPedido(301L, "DESPACHADO")).thenReturn(false);
         when(emailSenderService.habilitado()).thenReturn(false);

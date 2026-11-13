@@ -2,9 +2,9 @@ package cl.ochodigital.pasteleriamydreams.notificacionesservice.event;
 
 import java.time.LocalDateTime;
 
-// Mirrors the JSON contract published by pedidos-service on topic `pedidos`
-// (producer record PedidoCreadoEvent, serialized with the Spring ObjectMapper).
-// Field names must match exactly: evento, id, cliente, email, producto, cantidad, total, fecha.
+// Replica el contrato JSON publicado por pedidos-service en el topic `pedidos`
+// (record del productor PedidoCreadoEvent, serializado con el ObjectMapper de Spring).
+// Los nombres de los campos deben coincidir exactamente: evento, id, cliente, email, producto, cantidad, total, fecha.
 public record PedidoCreadoEvent(
         String evento,
         Long id,

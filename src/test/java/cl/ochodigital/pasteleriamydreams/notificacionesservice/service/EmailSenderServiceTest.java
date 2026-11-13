@@ -23,13 +23,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-// Unit tests for the RF-09 SMTP sender:
-//  - enablement depends ONLY on spring.mail.host being non-blank, and the
-//    JavaMailSender is never touched when SMTP is not configured (Boot still
-//    creates the bean for an empty host, so the guard must come first);
-//  - every failure is swallowed and reported as false so the Kafka listener
-//    contract (never throws) still holds;
-//  - blank / placeholder recipients are skipped, not counted as send attempts.
+// Tests unitarios del emisor SMTP RF-09:
+//  - la habilitación depende SOLO de que spring.mail.host no esté en blanco, y
+//    el JavaMailSender nunca se toca cuando SMTP no está configurado (Boot igual
+//    crea el bean con un host vacío, así que la guarda debe venir primero);
+//  - toda falla se absorbe y se reporta como false para que el contrato del
+//    listener de Kafka (nunca revienta) se siga cumpliendo;
+//  - los destinatarios en blanco / placeholder se saltan, no cuentan como intentos de envío.
 class EmailSenderServiceTest {
 
     private JavaMailSender mailSender;
@@ -43,7 +43,7 @@ class EmailSenderServiceTest {
     }
 
     private EmailSenderService service(String host, String from, String username) {
-        // from-name and site-url use their production defaults for this suite
+        // from-name y site-url usan sus valores por defecto de producción en esta suite
         return new EmailSenderService(mailSenderProvider, host, from, username,
                 "Pastelería My Dreams", "https://tienda.test");
     }
@@ -57,7 +57,7 @@ class EmailSenderServiceTest {
         return n;
     }
 
-    // First text/plain part of the (now multipart) message, null when absent
+    // Primera parte text/plain del mensaje (ahora multipart), null si no está
     private static String textoPlano(jakarta.mail.Part parte) throws Exception {
         Object contenido = parte.getContent();
         if (contenido instanceof jakarta.mail.Multipart mp) {
@@ -95,8 +95,8 @@ class EmailSenderServiceTest {
         assertEquals("daniela@ejemplo.cl",
                 mensaje.getRecipients(Message.RecipientType.TO)[0].toString());
         assertEquals("Pastelería My Dreams — Recibimos tu pedido", mensaje.getSubject());
-        // The body now travels as a multipart/alternative: the text/plain
-        // fallback must still carry the customer-facing text
+        // El cuerpo ahora viaja como multipart/alternative: el respaldo text/plain
+        // debe seguir trayendo el texto que ve el cliente
         assertTrue(mensaje.getContent() instanceof jakarta.mail.Multipart,
                 "The message must be multipart after RF-09 branding");
         String texto = textoPlano(mensaje);
@@ -148,8 +148,8 @@ class EmailSenderServiceTest {
 
     @Test
     void missingSenderAddressReturnsFalseWithoutASendAttempt() {
-        // Neither app.mail.from nor spring.mail.username: there is no valid
-        // From header to build, so the attempt must fail fast, not throw
+        // Ni app.mail.from ni spring.mail.username: no hay header From válido que
+        // construir, así que el intento debe fallar rápido, sin lanzar excepción
         EmailSenderService s = service("smtp.example.test", "", "");
 
         assertFalse(s.enviar(notificacion("daniela@ejemplo.cl")));

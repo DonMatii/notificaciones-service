@@ -8,9 +8,9 @@ import java.util.Optional;
 
 public interface NotificacionEstadoRepository extends JpaRepository<NotificacionEstado, Long> {
 
-    // The idempotency guard of the status consumer. It takes BOTH halves of the
-    // key: skipping on pedidoId alone would drop the second and third state of
-    // the same order, which is exactly what must not happen (S3).
+    // El control de idempotencia del consumidor de estados. Usa las DOS mitades
+    // de la clave: saltar solo por pedidoId descartaría el segundo y el tercer
+    // estado del mismo pedido, que es justamente lo que no debe pasar (S3).
     boolean existsByPedidoIdAndEstadoPedido(Long pedidoId, String estadoPedido);
 
     Optional<NotificacionEstado> findByPedidoIdAndEstadoPedido(Long pedidoId, String estadoPedido);

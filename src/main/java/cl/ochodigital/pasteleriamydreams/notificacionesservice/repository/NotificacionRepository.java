@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface NotificacionRepository extends JpaRepository<Notificacion, Long> {
 
-    // Used by the listener to skip duplicate deliveries of the same order
+    // Usado por el listener para saltear entregas duplicadas del mismo pedido
     boolean existsByPedidoId(Long pedidoId);
 
     Optional<Notificacion> findByPedidoId(Long pedidoId);

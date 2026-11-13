@@ -15,53 +15,53 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 
-// Sends the RF-09 order-confirmation email through the configured SMTP server.
-// Enablement is decided ONLY by spring.mail.host: when it is blank the service
-// reports itself as disabled and never touches the JavaMailSender, because Boot
-// still creates the sender bean for an empty host.
+// Envía el correo de confirmación de pedido (RF-09) a través del servidor SMTP
+// configurado. La habilitación se decide SOLO por spring.mail.host: cuando está
+// en blanco el servicio se reporta como deshabilitado y nunca toca el
+// JavaMailSender, porque Boot igual crea el bean del emisor con un host vacío.
 //
-// The message is a multipart/alternative (text/plain fallback + branded HTML
-// with the logo inline by cid:), built at send time from the persisted row:
-// cliente, cuerpo (plain text), codigoSeguimiento and asunto.
+// El mensaje es un multipart/alternative (respaldo text/plain + HTML con la
+// marca y el logo inline por cid:), construido al momento de enviar desde la
+// fila persistida: cliente, cuerpo (texto plano), codigoSeguimiento y asunto.
 @Service
 public class EmailSenderService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailSenderService.class);
 
-    // Placeholder the listener writes when the event carries no customer email
+    // Placeholder que escribe el listener cuando el evento no trae email del cliente
     private static final String PLACEHOLDER_EMAIL = "sin email";
 
-    // Brand fallbacks used when app.mail.from-name / app.mail.site-url are blank
+    // Valores por defecto de la marca, usados cuando app.mail.from-name / app.mail.site-url están en blanco
     private static final String MARCA_POR_DEFECTO = "Pastelería My Dreams";
     private static final String SITIO_POR_DEFECTO =
             "http://pasteleria-my-dreams-web-8digital.s3-website-us-east-1.amazonaws.com";
     private static final String RUTA_ESTADO = "/estado";
 
-    // Template and inline logo, both on the classpath (src/main/resources/mail)
+    // Plantilla y logo inline, ambos en el classpath (src/main/resources/mail)
     private static final String PLANTILLA = "mail/pedido-recibido.html";
     private static final String PLANTILLA_SOLICITUD = "mail/solicitud-recibida.html";
-    // Template for the status-change emails (S4): same shell and same inline logo,
-    // but the headline is the new state instead of the order summary
+    // Plantilla para los correos de cambio de estado (S4): mismo envoltorio y mismo
+    // logo inline, pero el titular es el estado nuevo en vez del resumen del pedido
     private static final String PLANTILLA_ESTADO = "mail/pedido-estado.html";
     private static final String LOGO = "mail/logo-pasteleria.png";
     private static final String CID_LOGO = "logo";
 
-    // Labels written by NotificacionListener#armarCuerpo: the HTML summary is
-    // parsed from them. If the format ever changes, resumenHtml degrades to a
-    // <pre> block with the whole plain body instead of losing the content.
+    // Etiquetas que escribe NotificacionListener#armarCuerpo: de ellas se parsea
+    // el resumen HTML. Si el formato cambia alguna vez, resumenHtml degrada a un
+    // bloque <pre> con todo el cuerpo en texto plano en vez de perder el contenido.
     private static final String ETIQUETA_PRODUCTOS = "Productos: ";
     private static final String ETIQUETA_CANTIDAD = "Cantidad total de articulos: ";
     private static final String ETIQUETA_TOTAL = "Total: ";
-    // Label written by NotificacionEstadoListener#armarCuerpo for the status emails
+    // Etiqueta que escribe NotificacionEstadoListener#armarCuerpo para los correos de estado
     private static final String ETIQUETA_TOTAL_ESTADO = "Total del pedido: ";
     private static final String ETIQUETA_DESCUENTO = "Descuento aplicado: ";
     private static final String ETIQUETA_SOLICITUD = "Tu solicitud: ";
     private static final String ETIQUETA_MENSAJE = "Tu mensaje: ";
     private static final String RUTA_DELICIAS = "/delicias";
 
-    // Resolved lazily: the JavaMailSender bean does not exist when spring.mail.host
-    // is absent from the environment (e.g. the hermetic test classpath), and eager
-    // injection would break context loading in that case.
+    // Resuelto de forma lazy: el bean JavaMailSender no existe cuando spring.mail.host
+    // está ausente del entorno (p. ej. el classpath hermético de tests), y una
+    // inyección eager rompería la carga del contexto en ese caso.
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final String host;
     private final String from;
@@ -83,14 +83,14 @@ public class EmailSenderService {
         this.siteUrl = siteUrl;
     }
 
-    // True only when an SMTP host is configured. Checked BEFORE any sender use.
+    // True solo cuando hay un host SMTP configurado. Se verifica ANTES de cualquier uso del emisor.
     public boolean habilitado() {
         return host != null && !host.isBlank();
     }
 
-    // Sends the branded multipart message (text/plain + HTML, UTF-8). Contract:
-    // returns true only on a confirmed send, false for skipped or failed
-    // attempts, and never throws (the listener may not break either).
+    // Envía el mensaje multipart con la marca (text/plain + HTML, UTF-8). Contrato:
+    // devuelve true solo ante un envío confirmado, false ante intentos salteados o
+    // fallidos, y nunca lanza excepciones (el listener tampoco puede romperse).
     public boolean enviar(Notificacion notificacion) {
         if (!habilitado()) {
             log.info("SMTP not configured (spring.mail.host is blank), email not sent for order {}",
@@ -98,7 +98,7 @@ public class EmailSenderService {
             return false;
         }
         if (notificacion == null || !hasRealRecipient(notificacion.getEmail())) {
-            // No real recipient: this is not a transport failure, just a skip
+            // Sin destinatario real: esto no es una falla de transporte, solo un salteo
             log.info("Skipping email for order {}: no real recipient ({})",
                     notificacion != null ? notificacion.getPedidoId() : null,
                     notificacion != null ? notificacion.getEmail() : null);
@@ -123,11 +123,11 @@ public class EmailSenderService {
         }
     }
 
-    // Status-change email (S4). Same transport, same branded shell and same
-    // contract as enviar(Notificacion): enablement decided only by spring.mail.host,
-    // blank recipients skipped without counting as an attempt, never throws, and
-    // true only on a confirmed send. What changes is the template and the fact
-    // that the headline is the state the customer is moving TO.
+    // Correo de cambio de estado (S4). Mismo transporte, mismo envoltorio con la
+    // marca y mismo contrato que enviar(Notificacion): habilitación decidida solo
+    // por spring.mail.host, destinatarios en blanco salteados sin contar como
+    // intento, nunca lanza excepciones y true solo ante un envío confirmado. Lo que
+    // cambia es la plantilla y que el titular es el estado al que el cliente está PASANDO.
     public boolean enviar(NotificacionEstado notificacion) {
         if (!habilitado()) {
             log.info("SMTP not configured (spring.mail.host is blank), status email not sent for order {}",
@@ -269,8 +269,8 @@ public class EmailSenderService {
                 + "</td></tr></table>";
     }
 
-    // Plain-text fallback for the status email: the persisted body plus the
-    // tracking lines when a code exists. Mirrors textoPlano(Notificacion).
+    // Respaldo en texto plano para el correo de estado: el cuerpo persistido más
+    // las líneas de seguimiento cuando hay código. Espejo de textoPlano(Notificacion).
     private String textoPlano(NotificacionEstado notificacion) {
         String base = notificacion.getCuerpo() != null ? notificacion.getCuerpo() : "";
         String codigo = notificacion.getCodigoSeguimiento();
@@ -281,9 +281,10 @@ public class EmailSenderService {
                 + "\nConsultalo en: " + urlEstado();
     }
 
-    // Fills the status template. Unlike the confirmation email, the headline and
-    // the sentence come straight from the state code via EstadosPedido, so the
-    // wording can never drift from what the listener wrote into the plain body.
+    // Rellena la plantilla de estado. A diferencia del correo de confirmación, el
+    // titular y la frase salen directo del código de estado vía EstadosPedido, así
+    // que la redacción nunca puede divergir de lo que el listener escribió en el
+    // cuerpo en texto plano.
     private String construirHtml(NotificacionEstado notificacion) throws Exception {
         String plantilla;
         try (var entrada = new ClassPathResource(PLANTILLA_ESTADO).getInputStream()) {
@@ -300,9 +301,9 @@ public class EmailSenderService {
                 .replace("{{seguimiento}}", bloqueSeguimiento(notificacion.getCodigoSeguimiento()));
     }
 
-    // One small table with the order total, parsed from the plain body with the
-    // same label mechanism the confirmation email already uses. Absent label
-    // degrades to no table rather than to a broken layout.
+    // Una tabla chica con el total del pedido, parseada del cuerpo en texto plano
+    // con el mismo mecanismo de etiquetas que ya usa el correo de confirmación.
+    // Una etiqueta ausente degrada a "sin tabla", nunca a un layout roto.
     private String resumenTotal(NotificacionEstado notificacion) {
         String total = extraerEtiqueta(notificacion.getCuerpo(), ETIQUETA_TOTAL_ESTADO);
         if (total == null) {
@@ -311,8 +312,9 @@ public class EmailSenderService {
         StringBuilder tabla = new StringBuilder(
                 "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
                         + "style=\"border-collapse:collapse;\">");
-        // The discount line only exists when the order had one: notifications
-        // persisted before this change keep rendering exactly as they did.
+        // La línea de descuento solo existe cuando el pedido tuvo uno: las
+        // notificaciones persistidas antes de este cambio se siguen renderizando
+        // exactamente igual.
         String descuento = extraerEtiqueta(notificacion.getCuerpo(), ETIQUETA_DESCUENTO);
         if (descuento != null) {
             filaResumen(tabla, "Descuento aplicado", descuento);
@@ -359,7 +361,7 @@ public class EmailSenderService {
         }
     }
 
-    // app.mail.from wins; spring.mail.username is the fallback when it is blank
+    // app.mail.from tiene prioridad; spring.mail.username es el respaldo cuando está en blanco
     private String resolveFrom() {
         if (from != null && !from.isBlank()) {
             return from;
@@ -367,7 +369,7 @@ public class EmailSenderService {
         return username;
     }
 
-    // Blank or placeholder recipients are skipped, never counted as send attempts
+    // Los destinatarios en blanco o placeholder se saltan, nunca cuentan como intentos de envío
     private boolean hasRealRecipient(String email) {
         if (email == null || email.isBlank()) {
             return false;
@@ -375,9 +377,9 @@ public class EmailSenderService {
         return !PLACEHOLDER_EMAIL.equalsIgnoreCase(email.trim());
     }
 
-    // --- branded message composition ---------------------------------------
+    // --- composición del mensaje con la marca -------------------------------
 
-    // The persisted plain-text body, plus the tracking lines when a code exists
+    // El cuerpo persistido en texto plano, más las líneas de seguimiento cuando hay código
     private String textoPlano(Notificacion notificacion) {
         String base = notificacion.getCuerpo() != null ? notificacion.getCuerpo() : "";
         String codigo = codigoDe(notificacion);
@@ -388,7 +390,7 @@ public class EmailSenderService {
                 + "\nConsultalo en: " + urlEstado();
     }
 
-    // Fills the HTML template from the row: logo is already cid: in the file
+    // Rellena la plantilla HTML desde la fila: el logo ya viene cid: en el archivo
     private String construirHtml(Notificacion notificacion) throws Exception {
         String plantilla;
         try (var entrada = new ClassPathResource(PLANTILLA).getInputStream()) {
@@ -401,8 +403,9 @@ public class EmailSenderService {
                 .replace("{{seguimiento}}", bloqueSeguimiento(codigoDe(notificacion)));
     }
 
-    // Order summary as a small table parsed from the three fixed labels of the
-    // plain body. Defensive fallback: embed the whole body in a <pre> block.
+    // Resumen del pedido como tabla chica, parseada de las tres etiquetas fijas
+    // del cuerpo en texto plano. Respaldo defensivo: incrusta todo el cuerpo en
+    // un bloque <pre>.
     private String resumenHtml(String cuerpo) {
         String productos = extraerEtiqueta(cuerpo, ETIQUETA_PRODUCTOS);
         String cantidad = extraerEtiqueta(cuerpo, ETIQUETA_CANTIDAD);
@@ -421,7 +424,7 @@ public class EmailSenderService {
         return tabla.append("</table>").toString();
     }
 
-    // One row of the summary table (skipped when the label is missing)
+    // Una fila de la tabla de resumen (se salta cuando falta la etiqueta)
     private void filaResumen(StringBuilder tabla, String etiqueta, String valor) {
         if (valor == null) {
             return;
@@ -438,7 +441,7 @@ public class EmailSenderService {
                 .append("</tr>");
     }
 
-    // Value of one fixed label in the plain body, or null when absent
+    // Valor de una etiqueta fija del cuerpo en texto plano, o null si no está
     private String extraerEtiqueta(String cuerpo, String etiqueta) {
         if (cuerpo == null) {
             return null;
@@ -452,9 +455,9 @@ public class EmailSenderService {
         return null;
     }
 
-    // Tracking block: the opaque code as copyable text plus a button to the
-    // plain /estado route (the public page does not read query params, so the
-    // code is NOT appended to the URL). Null/blank code => block omitted entirely.
+    // Bloque de seguimiento: el código opaco como texto copiable más un botón a la
+    // ruta /estado plana (la página pública no lee query params, así que el código
+    // NO se agrega a la URL). Código null/en blanco => el bloque se omite completo.
     private String bloqueSeguimiento(String codigo) {
         if (codigo == null) {
             return "";
@@ -500,12 +503,12 @@ public class EmailSenderService {
         return sitio;
     }
 
-    // Brand display name for From header and signature
+    // Nombre a mostrar de la marca para el header From y la firma
     private String nombreMarca() {
         return (fromName == null || fromName.isBlank()) ? MARCA_POR_DEFECTO : fromName.trim();
     }
 
-    // Tracking code of the row, normalized to null when absent/blank
+    // Código de seguimiento de la fila, normalizado a null cuando está ausente o en blanco
     private String codigoDe(Notificacion notificacion) {
         String codigo = notificacion.getCodigoSeguimiento();
         if (codigo == null || codigo.isBlank()) {
@@ -514,13 +517,13 @@ public class EmailSenderService {
         return codigo.trim();
     }
 
-    // The listener stores a default label when the event had no name
+    // El listener guarda una etiqueta por defecto cuando el evento no traía nombre
     private String valorCliente(Notificacion notificacion) {
         String cliente = notificacion.getCliente();
         return (cliente == null || cliente.isBlank()) ? "cliente" : cliente;
     }
 
-    // Minimal HTML escaping: customer data must never inject markup (XSS)
+    // Escape HTML mínimo: los datos del cliente nunca deben inyectar markup (XSS)
     private String escapar(String valor) {
         if (valor == null) {
             return "";

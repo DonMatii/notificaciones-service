@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-// The amount shown in the mails must match the amount shown in the web panel:
-// Chilean pesos are grouped with a dot.
+// El monto que se muestra en los correos debe coincidir con el que muestra el
+// panel web: los pesos chilenos se agrupan con punto.
 class FormatoMonedaTest {
 
     @Test

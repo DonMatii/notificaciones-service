@@ -2,14 +2,14 @@ package cl.ochodigital.pasteleriamydreams.notificacionesservice.event;
 
 import java.time.LocalDateTime;
 
-// Mirrors the JSON contract published by pedidos-service on the topic
-// `pedidos-estados` (producer record PedidoEstadoCambiadoEvent). Field names must
-// match exactly: evento, id, cliente, email, estadoAnterior, estadoNuevo, total,
-// fecha, codigoConsulta, productos.
+// Replica el contrato JSON publicado por pedidos-service en el topic
+// `pedidos-estados` (record del productor PedidoEstadoCambiadoEvent). Los
+// nombres de los campos deben coincidir exactamente: evento, id, cliente, email,
+// estadoAnterior, estadoNuevo, total, fecha, codigoConsulta, productos.
 //
-// It lives on its own topic on purpose: Notificacion.pedidoId is unique and the
-// PedidoCreado consumer skips any second event for the same order, so a status
-// change travelling on `pedidos` would be silently discarded.
+// Vive en su propio topic a propósito: Notificacion.pedidoId es único y el
+// consumidor de PedidoCreado salta cualquier segundo evento del mismo pedido,
+// así que un cambio de estado viajando por `pedidos` se descartaría en silencio.
 public record PedidoEstadoCambiadoEvent(
         String evento,
         Long id,

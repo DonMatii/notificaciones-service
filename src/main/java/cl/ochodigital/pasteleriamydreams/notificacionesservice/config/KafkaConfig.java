@@ -14,28 +14,28 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.util.backoff.FixedBackOff;
 
-// Error policy for the queue consumers (rubric: success / recoverable failure /
-// definitive failure):
-//  - TRANSIENT failures (DB or infra down) are retried with a fixed backoff
-//    (app.kafka.reintentos.*) and only after exhausting retries the message is
-//    moved to the DLQ.
-//  - DEFINITIVE failures (unreadable payload, invalid event) skip retries and
-//    go straight to the DLQ.
-//  - Every message that reaches the DLQ keeps the original payload plus the
-//    exception headers, so it can be reviewed and replayed by hand. Nothing is
-//    silently dropped anymore.
-// Duplicates never get here: the idempotency guard skips them before any of
-// this runs (control de duplicados).
+// Política de errores de los consumidores de la cola (rúbrica: éxito / falla
+// recuperable / falla definitiva):
+//  - Las fallas TRANSITORIAS (la base o la infraestructura caídas) se reintentan
+//    con un backoff fijo (app.kafka.reintentos.*) y solo tras agotar los
+//    reintentos el mensaje pasa a la DLQ.
+//  - Las fallas DEFINITIVAS (payload ilegible, evento inválido) omiten los
+//    reintentos y van directo a la DLQ.
+//  - Cada mensaje que llega a la DLQ conserva el payload original más los
+//    headers con la excepción, para poder revisarlo y reproducirlo a mano. Ya
+//    no se descarta nada en silencio.
+// Los duplicados nunca llegan acá: el control de idempotencia los salta antes
+// de que todo esto se ejecute (control de duplicados).
 @Configuration
 public class KafkaConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaConfig.class);
 
-    // Retries after the first attempt (2 = up to 3 tries total)
+    // Reintentos después del primer intento (2 = hasta 3 intentos en total)
     @Value("${app.kafka.reintentos.max:2}")
     private int maxReintentos;
 
-    // Wait between retries in milliseconds (configurable per environment)
+    // Espera entre reintentos en milisegundos (configurable por entorno)
     @Value("${app.kafka.reintentos.espera-ms:1000}")
     private long esperaEntreReintentosMs;
 
@@ -43,8 +43,8 @@ public class KafkaConfig {
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
             ConsumerFactory<String, String> consumerFactory, KafkaTemplate<String, String> kafkaTemplate) {
 
-        // Failed messages land in <topic>.DLT (e.g. pedidos.DLT) with the
-        // failure reason in the headers; the isolation itself is logged as error
+        // Los mensajes fallidos terminan en <topic>.DLT (p. ej. pedidos.DLT) con
+        // el motivo de la falla en los headers; el aislamiento mismo se registra como error
         DeadLetterPublishingRecoverer publicadorDlt = new DeadLetterPublishingRecoverer(kafkaTemplate) {
             @Override
             public void accept(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> registro, Exception error) {
@@ -57,13 +57,13 @@ public class KafkaConfig {
         DefaultErrorHandler manejador = new DefaultErrorHandler(publicadorDlt,
                 new FixedBackOff(esperaEntreReintentosMs, maxReintentos));
 
-        // Definitive failures: no retries, straight to the DLQ
+        // Fallas definitivas: sin reintentos, directo a la DLQ
         manejador.addNotRetryableExceptions(
                 JsonProcessingException.class,
                 IllegalArgumentException.class,
                 DeserializationException.class);
 
-        // Traceability: every attempt and the final DLQ delivery are logged
+        // Trazabilidad: cada intento y la entrega final a la DLQ quedan registrados
         manejador.setRetryListeners((registro, error, intento) ->
                 log.warn("Attempt #{} failed for message on {} (key {}): {}",
                         intento, registro.topic(), registro.key(), error.getMessage()));

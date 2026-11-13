@@ -13,9 +13,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-// Verifies the consumer end to end: a real producer payload creates exactly one
-// notification row, redelivery of the same event is idempotent, and a broken
-// (poison) message never kills the consumer.
+// Verifica el consumidor de punta a punta: un payload real del productor crea
+// exactamente una fila de notificación, la reentrega del mismo evento es
+// idempotente y un mensaje roto (píldora de veneno) nunca mata al consumidor.
 @SpringBootTest
 @EmbeddedKafka(partitions = 1, topics = {"pedidos"})
 @TestPropertySource(properties = {
@@ -26,9 +26,9 @@ class NotificacionConsumoIntegrationTest {
 
     private static final String TOPICO = "pedidos";
 
-    // Exact JSON contract published by pedidos-service (record PedidoCreadoEvent
-    // serialized with the Spring ObjectMapper: ISO-8601 LocalDateTime, plus the
-    // opaque tracking code codigoConsulta appended by RF-11)
+    // Contrato JSON exacto publicado por pedidos-service (record PedidoCreadoEvent
+    // serializado con el ObjectMapper de Spring: LocalDateTime ISO-8601, más el
+    // código de seguimiento opaco codigoConsulta agregado por RF-11)
     private static final String EVENTO_PEDIDO_101 = """
             {"evento":"PedidoCreado","id":101,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","producto":"Torta de chocolate, Cupcakes vainilla","cantidad":7,"total":33990,"fecha":"2026-10-01T12:30:00","codigoConsulta":"0a1b2c3d4e5f60718293a4b5c6d7e8f9"}""";
 
@@ -38,7 +38,7 @@ class NotificacionConsumoIntegrationTest {
     private static final String EVENTO_PEDIDO_201 = """
             {"evento":"PedidoCreado","id":201,"cliente":"Maria Soto","email":"maria@ejemplo.cl","producto":"Tres leches","cantidad":1,"total":12500,"fecha":"2026-10-01T13:00:00"}""";
 
-    // Broken payloads: neither is a valid PedidoCreado event
+    // Payloads rotos: ninguno es un evento PedidoCreado válido
     private static final String EVENTO_CORRUPTO = "this is not json {{{";
     private static final String EVENTO_SIN_ID = "{\"evento\":\"PedidoCreado\",\"cliente\":\"Sin id\"}";
 
@@ -52,14 +52,14 @@ class NotificacionConsumoIntegrationTest {
     void persistOneNotificationPerOrderEvenWhenTheEventIsRedelivered() throws Exception {
         long baseline = notificacionRepository.count();
 
-        // 1) Publish a real producer payload: a notification row must appear
+        // 1) Publicar un payload real del productor: debe aparecer una fila de notificación
         publicar(EVENTO_PEDIDO_101);
         assertTrue(esperar(() -> notificacionRepository.existsByPedidoId(101L), 10_000),
                 "The notification for order 101 must be persisted");
         assertEquals(baseline + 1, notificacionRepository.count());
 
-        // The row carries the expected content and the initial PENDIENTE state
-        // (these tests run without SMTP configured, so no email is attempted)
+        // La fila trae el contenido esperado y el estado inicial PENDIENTE
+        // (estos tests corren sin SMTP configurado, así que no se intenta ningún correo)
         Notificacion guardada = notificacionRepository.findByPedidoId(101L).orElseThrow();
         assertEquals("Pastelería My Dreams — Recibimos tu pedido", guardada.getAsunto());
         assertEquals("0a1b2c3d4e5f60718293a4b5c6d7e8f9", guardada.getCodigoSeguimiento(),
@@ -77,16 +77,16 @@ class NotificacionConsumoIntegrationTest {
         assertTrue(!guardada.getCuerpo().contains("Tu pedido 101"),
                 "The sequential id must not leak into client-facing copy");
 
-        // 2) Publish the SAME event again, followed by a sentinel order.
-        //    The topic has one partition and the consumer is single-threaded, so the
-        //    sentinel is processed strictly AFTER the duplicate: once the sentinel row
-        //    exists, the duplicate has already been handled and skipped.
+        // 2) Publicar el MISMO evento otra vez, seguido de un pedido centinela.
+        //    El topic tiene una partición y el consumidor es monohilo, así que el
+        //    centinela se procesa estrictamente DESPUÉS del duplicado: una vez que
+        //    existe la fila del centinela, el duplicado ya fue procesado y salteado.
         publicar(EVENTO_PEDIDO_101);
         publicar(EVENTO_PEDIDO_102);
         assertTrue(esperar(() -> notificacionRepository.existsByPedidoId(102L), 10_000),
                 "The sentinel order 102 must be persisted (proves the duplicate was consumed)");
 
-        // Exactly ONE row for order 101, and exactly two new rows in total
+        // Exactamente UNA fila para el pedido 101, y exactamente dos filas nuevas en total
         assertNotNull(notificacionRepository.findByPedidoId(101L).orElseThrow(),
                 "Order 101 must still have a notification");
         assertEquals(baseline + 2, notificacionRepository.count(),
@@ -97,12 +97,12 @@ class NotificacionConsumoIntegrationTest {
     void brokenPayloadsAreLoggedAndTheConsumerKeepsWorking() throws Exception {
         long baseline = notificacionRepository.count();
 
-        // 1) Poison pills: unparsable JSON and a parsable event without id.
-        //    Neither must create a row, and neither may throw out of the listener.
+        // 1) Píldoras de veneno: un JSON ilegible y un evento parseable sin id.
+        //    Ninguno debe crear fila, y ninguno puede salir del listener como excepción.
         publicar(EVENTO_CORRUPTO);
         publicar(EVENTO_SIN_ID);
 
-        // 2) A valid event right after the poison pills: the consumer must still work
+        // 2) Un evento válido justo después de las píldoras de veneno: el consumidor debe seguir funcionando
         publicar(EVENTO_PEDIDO_201);
         assertTrue(esperar(() -> notificacionRepository.existsByPedidoId(201L), 10_000),
                 "The consumer must survive broken payloads and process the next valid event");
@@ -111,12 +111,12 @@ class NotificacionConsumoIntegrationTest {
                 "Broken payloads must not create notification rows");
     }
 
-    // Sends to the embedded broker and waits for the broker acknowledgment
+    // Envía al broker embebido y espera el acknowledgment del broker
     private void publicar(String payload) throws Exception {
         kafkaTemplate.send(TOPICO, payload).get(10, TimeUnit.SECONDS);
     }
 
-    // Polls a condition until it is true or the timeout expires
+    // Consulta una condición hasta que se cumpla o expire el timeout
     private boolean esperar(java.util.function.BooleanSupplier condicion, long timeoutMs)
             throws InterruptedException {
         long limite = System.currentTimeMillis() + timeoutMs;

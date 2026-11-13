@@ -3,15 +3,15 @@ package cl.ochodigital.pasteleriamydreams.notificacionesservice.service;
 import java.util.Locale;
 
 /**
- * Formats an order amount for the customer-facing mails.
+ * Formatea un monto de pedido para los correos que ve el cliente.
  *
- * Chilean pesos are grouped with a dot ("$25.990"), exactly like the web
- * panel and the public order-status page render them (toLocaleString("es-CL")).
- * Concatenating the raw integer printed "$25990" in the mails while the site
- * showed "$25.990" for the same order.
+ * Los pesos chilenos se agrupan con punto ("$25.990"), exactamente igual que en
+ * el panel web y en la página pública de estado del pedido (toLocaleString("es-CL")).
+ * Concatenar el entero crudo imprimía "$25990" en los correos mientras el sitio
+ * mostraba "$25.990" para el mismo pedido.
  *
- * The locale is pinned on purpose: the output must not depend on the default
- * locale of the machine that runs the service.
+ * El locale está fijado a propósito: la salida no debe depender del locale por
+ * defecto de la máquina que corre el servicio.
  */
 public final class FormatoMoneda {
 
@@ -21,8 +21,8 @@ public final class FormatoMoneda {
     }
 
     /**
-     * @param monto amount in pesos; {@code null} means "the event carried no amount"
-     * @return the formatted amount, or the "sin dato" fallback when there is none
+     * @param monto monto en pesos; {@code null} significa "el evento no traía monto"
+     * @return el monto formateado, o el respaldo "sin dato" cuando no hay ninguno
      */
     public static String clp(Integer monto) {
         if (monto == null) {

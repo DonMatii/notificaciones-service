@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-// Minimal read-only endpoint for local verification/demo of the consumer
+// Endpoint mínimo de solo lectura para verificación/demo local del consumidor
 @RestController
 @RequestMapping("/api/notificaciones")
 @CrossOrigin(origins = {"http://localhost:5173"})
@@ -21,7 +21,7 @@ public class NotificacionController {
         this.notificacionRepository = notificacionRepository;
     }
 
-    // Lists all notifications, newest first
+    // Lista todas las notificaciones, las más recientes primero
     @GetMapping
     public List<Notificacion> listar() {
         return notificacionRepository.findAllByOrderByIdDesc();

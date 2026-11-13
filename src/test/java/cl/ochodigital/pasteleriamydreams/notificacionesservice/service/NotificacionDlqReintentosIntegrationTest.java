@@ -30,8 +30,9 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-// VERIFIER PROBE (scratch only): retry/DLQ contract with a 1000 ms backoff so the
-// absence of retries is observable in time, not just in call counts.
+// SONDA DE VERIFICACIÓN (solo scratch): contrato de reintentos/DLQ con un backoff
+// de 1000 ms para que la ausencia de reintentos sea observable en el tiempo, no
+// solo en los conteos de llamadas.
 @SpringBootTest
 @EmbeddedKafka(partitions = 1, topics = {"pedidos", "pedidos.DLT"})
 @TestPropertySource(properties = {
@@ -119,7 +120,7 @@ class NotificacionDlqReintentosIntegrationTest {
         return lector;
     }
 
-    // Scans the DLT until the expected payload shows up (earlier probe records are ignored)
+    // Recorre la DLT hasta que aparezca el payload esperado (los registros de sondas anteriores se ignoran)
     private ConsumerRecord<String, String> esperarPayload(Consumer<String, String> lector, String payload, long msMax) {
         long fin = System.currentTimeMillis() + msMax;
         while (System.currentTimeMillis() < fin) {

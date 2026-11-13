@@ -22,7 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-// VERIFIER PROBE (scratch only): the status topic (pedidos-estados) gets the same policy.
+// SONDA DE VERIFICACIÓN (solo scratch): el topic de estados (pedidos-estados) recibe la misma política.
 @SpringBootTest
 @EmbeddedKafka(partitions = 1, topics = {"pedidos", "pedidos-estados", "pedidos-estados.DLT"})
 @TestPropertySource(properties = {

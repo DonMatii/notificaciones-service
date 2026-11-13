@@ -26,7 +26,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-// VERIFIER PROBE (scratch only): a definitive failure must reach the listener ONCE.
+// SONDA DE VERIFICACIÓN (solo scratch): una falla definitiva debe llegar al listener UNA sola vez.
 @SpringBootTest
 @EmbeddedKafka(partitions = 1, topics = {"pedidos", "pedidos.DLT"})
 @TestPropertySource(properties = {

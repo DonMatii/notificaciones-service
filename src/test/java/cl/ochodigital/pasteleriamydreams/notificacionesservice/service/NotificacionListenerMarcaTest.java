@@ -18,18 +18,18 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// RF-09/RF-11: the confirmation email must carry the brand, never the internal
-// sequential id, and the opaque tracking code from the event must land on the
-// row. The listener contract itself is unchanged: it never throws, the
-// idempotency guard still applies and without SMTP the row stays PENDIENTE.
+// RF-09/RF-11: el correo de confirmación debe llevar la marca, nunca el id
+// secuencial interno, y el código de seguimiento opaco del evento debe quedar
+// en la fila. El contrato del listener no cambia: nunca revienta, el control de
+// idempotencia sigue aplicando y sin SMTP la fila queda PENDIENTE.
 class NotificacionListenerMarcaTest {
 
-    // Exact payload pedidos-service publishes after RF-09/RF-11: same fields as
-    // before plus codigoConsulta at the end
+    // Payload exacto que publica pedidos-service después de RF-09/RF-11: los
+    // mismos campos de antes más codigoConsulta al final
     private static final String EVENTO_CON_CODIGO = """
             {"evento":"PedidoCreado","id":777,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","producto":"Torta de chocolate","cantidad":2,"total":25990,"fecha":"2026-10-01T12:30:00","codigoConsulta":"9f8e7d6c5b4a39281706f5e4d3c2b1a0"}""";
 
-    // Older or partial events without the tracking code must not break anything
+    // Eventos antiguos o parciales sin el código de seguimiento no deben romper nada
     private static final String EVENTO_SIN_CODIGO = """
             {"evento":"PedidoCreado","id":778,"cliente":"Raul Pino","email":"raul@ejemplo.cl","producto":"Kuchen de manzana","cantidad":1,"total":9980,"fecha":"2026-10-01T12:35:00"}""";
 
@@ -41,9 +41,9 @@ class NotificacionListenerMarcaTest {
     void setUp() {
         repository = mock(NotificacionRepository.class);
         emailSenderService = mock(EmailSenderService.class);
-        // Same leniency as the Spring Boot auto-configured ObjectMapper used in
-        // production (FAIL_ON_UNKNOWN_PROPERTIES=false): the mirror record does
-        // not model codigoConsulta, so the vanilla strict mapper would reject it
+        // Misma tolerancia que el ObjectMapper autoconfigurado de Spring Boot que
+        // se usa en producción (FAIL_ON_UNKNOWN_PROPERTIES=false): el record
+        // espejo no modela codigoConsulta, así que el mapper estricto a secas lo rechazaría
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         listener = new NotificacionListener(repository, objectMapper, emailSenderService);
@@ -89,7 +89,7 @@ class NotificacionListenerMarcaTest {
         assertEquals("PENDIENTE", guardada.getEstado());
     }
 
-    // Captures the single row saved when SMTP is not configured
+    // Captura la única fila guardada cuando SMTP no está configurado
     private Notificacion guardarUnaVez() {
         ArgumentCaptor<Notificacion> captor = ArgumentCaptor.forClass(Notificacion.class);
         verify(repository, times(1)).save(captor.capture());

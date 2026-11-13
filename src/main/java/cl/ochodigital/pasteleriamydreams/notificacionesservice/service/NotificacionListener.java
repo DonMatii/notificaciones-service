@@ -12,20 +12,21 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
-// Consumes PedidoCreado events from topic `pedidos` and persists a notification
-// per order (RF-09). When SMTP is configured (MAIL_HOST set) the confirmation
-// email is sent right after the save and the row moves to ENVIADO / ERROR;
-// without SMTP the row stays PENDIENTE, exactly as before.
+// Consume eventos PedidoCreado del topic `pedidos` y persiste una notificación
+// por pedido (RF-09). Cuando SMTP está configurado (MAIL_HOST definido) el
+// correo de confirmación se envía justo después del guardado y la fila pasa a
+// ENVIADO / ERROR; sin SMTP la fila queda PENDIENTE, exactamente como antes.
 @Service
 public class NotificacionListener {
 
     private static final Logger log = LoggerFactory.getLogger(NotificacionListener.class);
 
-    // The consumer group this service belongs to
+    // El grupo de consumidores al que pertenece este servicio
     private static final String GRUPO_CONSUMIDOR = "notificaciones";
 
-    // Branded subject stored on the row and sent for every confirmation email:
-    // the brand only, never the internal sequential id (RF-11 keeps it private)
+    // Asunto con la marca, guardado en la fila y enviado en cada correo de
+    // confirmación: solo la marca, nunca el id secuencial interno (RF-11 lo
+    // mantiene en privado)
     static final String ASUNTO_CONFIRMACION = "Pastelería My Dreams — Recibimos tu pedido";
 
     private final NotificacionRepository notificacionRepository;
@@ -40,14 +41,15 @@ public class NotificacionListener {
         this.emailSenderService = emailSenderService;
     }
 
-    // Entry point for every message on the topic. Error policy (rubric:
-    // success / recoverable failure / definitive failure):
-    //  - duplicates are skipped by the idempotency guard (never thrown)
-    //  - definitive failures (unreadable payload, event without id) are
-    //    rethrown and the error handler isolates them in <topic>.DLT with no
-    //    retries: nothing is lost in silence
-    //  - transient failures (DB down, infra) are rethrown too: the error
-    //    handler retries with backoff and only then moves the message to the DLQ
+    // Punto de entrada de cada mensaje del topic. Política de errores (rúbrica:
+    // éxito / falla recuperable / falla definitiva):
+    //  - los duplicados los salta el control de idempotencia (nunca se lanzan)
+    //  - las fallas definitivas (payload ilegible, evento sin id) se relanzan y
+    //    el manejador de errores las aísla en <topic>.DLT sin reintentos: nada
+    //    se pierde en silencio
+    //  - las fallas transitorias (base caída, infraestructura) también se
+    //    relanzan: el manejador de errores reintenta con backoff y solo entonces
+    //    mueve el mensaje a la DLQ
     @KafkaListener(topics = "${app.kafka.topic:pedidos}", groupId = GRUPO_CONSUMIDOR)
     public void onPedidoCreado(String payload) {
         try {
@@ -57,7 +59,7 @@ public class NotificacionListener {
                 throw new IllegalArgumentException("event without order id");
             }
 
-            // Idempotency guard: the same pedidoId must produce exactly one row
+            // Control de idempotencia: un mismo pedidoId debe producir exactamente una fila
             if (notificacionRepository.existsByPedidoId(evento.id())) {
                 log.debug("Duplicate event for order {} skipped", evento.id());
                 return;
@@ -69,28 +71,30 @@ public class NotificacionListener {
             log.info("Notification persisted for order {} with state PENDIENTE", evento.id());
             aplicarEnvioCorreo(notificacion);
         } catch (DataIntegrityViolationException e) {
-            // Lost a race against a concurrent save of the same pedidoId
+            // Se perdió una carrera contra un guardado concurrente del mismo pedidoId
             log.debug("Duplicate event for order detected on save, skipped: {}", e.getMessage());
         } catch (JsonProcessingException | IllegalArgumentException e) {
-            // Definitive failure: unreadable or invalid event -> no retries, the
-            // error handler sends it straight to the DLQ for manual review
+            // Falla definitiva: evento ilegible o inválido -> sin reintentos, el
+            // manejador de errores lo envía directo a la DLQ para revisión manual
             log.error("Definitively invalid message, isolating to the DLQ. Payload: {} - Reason: {}",
                     payload, e.getMessage());
             throw new IllegalArgumentException("invalid PedidoCreado event", e);
         } catch (Exception e) {
-            // Transient failure (DB down, infra): rethrown so the error handler
-            // retries it and, if it persists, isolates it in the DLQ. The old
-            // "log and skip" silently lost the order's confirmation email.
+            // Falla transitoria (base caída, infraestructura): se relanza para que
+            // el manejador de errores reintente y, si persiste, lo aísle en la
+            // DLQ. El viejo "registrar y seguir" perdía en silencio el correo de
+            // confirmación del pedido.
             log.error("Recoverable failure processing event. Payload: {} - Reason: {}",
                     payload, e.getMessage());
             throw e instanceof RuntimeException ? (RuntimeException) e : new IllegalStateException(e);
         }
     }
 
-    // RF-09: hand the freshly saved row to the SMTP sender when one is configured.
-    // Runs after the idempotency guard and the save. EmailSenderService swallows
-    // its own errors and never throws, so the "listener never throws" contract
-    // and the poison-pill handling above stay untouched.
+    // RF-09: entrega la fila recién guardada al emisor SMTP cuando hay uno
+    // configurado. Se ejecuta después del control de idempotencia y el guardado.
+    // EmailSenderService absorbe sus propios errores y nunca lanza excepciones,
+    // por lo que el contrato "el listener nunca revienta" y el manejo de
+    // píldoras de veneno de arriba quedan intactos.
     private void aplicarEnvioCorreo(Notificacion notificacion) {
         if (!emailSenderService.habilitado()) {
             log.info("SMTP not configured, notification stays PENDIENTE (order {})",
@@ -107,8 +111,9 @@ public class NotificacionListener {
         }
     }
 
-    // Builds the notification row from the event data plus the opaque tracking
-    // code (nullable: events published before RF-11 do not carry one)
+    // Construye la fila de notificación con los datos del evento más el código
+    // de seguimiento opaco (nullable: los eventos publicados antes de RF-11 no
+    // lo traen)
     private Notificacion construirNotificacion(PedidoCreadoEvent evento, String codigoSeguimiento) {
         Notificacion notificacion = new Notificacion();
         notificacion.setPedidoId(evento.id());
@@ -122,9 +127,9 @@ public class NotificacionListener {
         return notificacion;
     }
 
-    // codigoConsulta (RF-11) rides along in the payload but the mirror record
-    // does not model it, so it is read defensively from the raw JSON. Never
-    // throws: a missing or odd value simply degrades to null.
+    // codigoConsulta (RF-11) viaja en el payload pero el record espejo no lo
+    // modela, así que se lee de forma defensiva desde el JSON crudo. Nunca
+    // lanza excepciones: un valor ausente o raro simplemente degrada a null.
     private String extraerCodigoSeguimiento(String payload) {
         try {
             JsonNode nodo = objectMapper.readTree(payload);
@@ -140,7 +145,7 @@ public class NotificacionListener {
         }
     }
 
-    // Plain-text body with cliente / producto / cantidad / total from the event
+    // Cuerpo en texto plano con cliente / producto / cantidad / total del evento
     private String armarCuerpo(PedidoCreadoEvent evento) {
         String cliente = valorPorDefecto(evento.cliente(), "cliente");
         String producto = valorPorDefecto(evento.producto(), "sin detalle");
@@ -161,7 +166,7 @@ public class NotificacionListener {
                 total);
     }
 
-    // Null/blank-safe helper so a partial event never crashes the listener
+    // Auxiliar a prueba de null/vacíos para que un evento parcial nunca reviente el listener
     private String valorPorDefecto(String valor, String porDefecto) {
         return (valor == null || valor.isBlank()) ? porDefecto : valor;
     }

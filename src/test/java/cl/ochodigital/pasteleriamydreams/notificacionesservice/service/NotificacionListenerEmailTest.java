@@ -17,12 +17,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// Verifies the RF-09 email hook inside the listener. The listener contract is
-// unchanged: it never throws, the idempotency guard still short-circuits
-// duplicates, and the notification state only moves when SMTP is configured.
+// Verifica el hook de correo RF-09 dentro del listener. El contrato del listener
+// sigue intacto: nunca revienta, el control de idempotencia todavía cortocircuita
+// los duplicados, y el estado de la notificación solo se mueve cuando SMTP está configurado.
 class NotificacionListenerEmailTest {
 
-    // Exact JSON contract published by pedidos-service (record PedidoCreadoEvent)
+    // Contrato JSON exacto publicado por pedidos-service (record PedidoCreadoEvent)
     private static final String EVENTO_PEDIDO_301 = """
             {"evento":"PedidoCreado","id":301,"cliente":"Daniela Soto","email":"daniela@ejemplo.cl","producto":"Torta de chocolate","cantidad":2,"total":25990,"fecha":"2026-10-01T12:30:00"}""";
 
@@ -90,8 +90,8 @@ class NotificacionListenerEmailTest {
         verify(emailSenderService, never()).enviar(any(Notificacion.class));
     }
 
-    // The customer reads the same amount in the mail and in the web panel, so
-    // the total must carry the Chilean thousands separator ("$25.990").
+    // El cliente lee el mismo monto en el correo y en el panel web, así que el
+    // total debe llevar el separador de miles chileno ("$25.990").
     @Test
     void elTotalDelCorreoSeGuardaConSeparadorDeMiles() {
         when(emailSenderService.habilitado()).thenReturn(false);

@@ -5,12 +5,13 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-// One email generated from a PedidoEstadoCambiado event (S3/S4).
+// Un correo generado a partir de un evento PedidoEstadoCambiado (S3/S4).
 //
-// Deliberately a SEPARATE table from `notificaciones`: that one has pedidoId
-// unique because an order produces exactly one confirmation email, while here a
-// single order walks up to three states and must produce one row per state.
-// spring.jpa.hibernate.ddl-auto=update creates the table; no existing row moves.
+// Deliberadamente una tabla SEPARADA de `notificaciones`: esa tiene pedidoId
+// único porque un pedido produce exactamente un correo de confirmación, mientras
+// que acá un mismo pedido recorre hasta tres estados y debe producir una fila
+// por estado. spring.jpa.hibernate.ddl-auto=update crea la tabla; ninguna fila
+// existente se mueve.
 @Entity
 @Table(name = "notificaciones_estado",
         uniqueConstraints = @UniqueConstraint(columnNames = {"pedidoId", "estadoPedido"}))
@@ -21,17 +22,17 @@ public class NotificacionEstado {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // First half of the idempotency key: with at-least-once delivery the same
-    // state change can arrive more than once
+    // Primera mitad de la clave de idempotencia: con entrega at-least-once el
+    // mismo cambio de estado puede llegar más de una vez
     @Column(nullable = false)
     private Long pedidoId;
 
-    // Second half of the idempotency key: EN_PREPARACION / DESPACHADO / ENTREGADO.
-    // The state the customer is moving TO, which is what the email announces.
+    // Segunda mitad de la clave de idempotencia: EN_PREPARACION / DESPACHADO / ENTREGADO.
+    // El estado al que el cliente está PASANDO, que es lo que anuncia el correo.
     @Column(nullable = false, length = 32)
     private String estadoPedido;
 
-    // The state the order came FROM, kept so the email can say "paso de X a Y"
+    // El estado del que venía el pedido, guardado para que el correo pueda decir "paso de X a Y"
     @Column(length = 32)
     private String estadoAnterior;
 
@@ -41,11 +42,11 @@ public class NotificacionEstado {
 
     private String asunto;
 
-    // Email body text sent over SMTP when MAIL_HOST is configured (S4)
+    // Texto del correo enviado por SMTP cuando MAIL_HOST está configurado (S4)
     @Column(length = 2000)
     private String cuerpo;
 
-    // Opaque tracking code (RF-11) for the public /estado link in the email
+    // Código de seguimiento opaco (RF-11) para el link público /estado del correo
     @Column(length = 64)
     private String codigoSeguimiento;
 
@@ -53,10 +54,10 @@ public class NotificacionEstado {
     @Column(columnDefinition = "TEXT")
     private String productosJson;
 
-    // PENDIENTE until the email step runs; ENVIADO / ERROR once SMTP is attempted.
-    // Named estadoEnvio (not estado) to keep it apart from estadoPedido above.
+    // PENDIENTE hasta que corre el paso del correo; ENVIADO / ERROR una vez que se intenta SMTP.
+    // Se llama estadoEnvio (y no estado) para no confundirlo con estadoPedido de arriba.
     private String estadoEnvio = "PENDIENTE";
 
-    // When this notification row was created
+    // Cuándo se creó esta fila de notificación
     private LocalDateTime fecha = LocalDateTime.now();
 }

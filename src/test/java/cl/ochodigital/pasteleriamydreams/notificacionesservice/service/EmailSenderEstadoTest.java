@@ -18,10 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-// Rendering of the STATUS email. The status mail lists the product prices and
-// the order total side by side, so when a discount was applied the customer
-// must be able to reconcile both numbers: the discount has to be visible.
-// This is also the first coverage of this rendering path.
+// Renderizado del correo de ESTADO. El correo de estado lista los precios de
+// los productos y el total del pedido uno al lado del otro, así que cuando se
+// aplicó un descuento el cliente debe poder cuadrar ambos números: el descuento
+// tiene que ser visible. Esta es además la primera cobertura de esta ruta de
+// renderizado.
 class EmailSenderEstadoTest {
 
     private JavaMailSender mailSender;
@@ -33,8 +34,8 @@ class EmailSenderEstadoTest {
         mailSender = mock(JavaMailSender.class);
         mailSenderProvider = mock(ObjectProvider.class);
         when(mailSenderProvider.getObject()).thenReturn(mailSender);
-        // mail.host: saveChanges() derives the Message-ID host from it; without
-        // it JavaMail falls back to InetAddress.getLocalHost() (~9.5s DNS wait)
+        // mail.host: saveChanges() deriva de ahí el host del Message-ID; sin él
+        // JavaMail cae a InetAddress.getLocalHost() (~9,5 s de espera DNS)
         Properties props = new Properties();
         props.setProperty("mail.host", "localhost");
         mensaje = new MimeMessage(jakarta.mail.Session.getInstance(props));
@@ -76,7 +77,7 @@ class EmailSenderEstadoTest {
                 "The order total must still be rendered");
     }
 
-    // --- helpers -----------------------------------------------------------
+    // --- auxiliares --------------------------------------------------------
 
     private boolean enviar(NotificacionEstado notificacion) throws Exception {
         boolean enviado = service().enviar(notificacion);
@@ -110,8 +111,8 @@ class EmailSenderEstadoTest {
                 "no-reply@ejemplo.cl", "", "Pastelería My Dreams", "https://tienda.test");
     }
 
-    // Mirrors the row the listener persists for a discounted order: the product
-    // prices add up to $21.000 but the order total is $18.900.
+    // Replica la fila que persiste el listener para un pedido con descuento: los
+    // precios de los productos suman $21.000 pero el total del pedido es $18.900.
     private NotificacionEstado notificacionConDescuento() {
         NotificacionEstado n = new NotificacionEstado();
         n.setPedidoId(31L);
